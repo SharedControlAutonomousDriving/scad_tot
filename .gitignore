@@ -3,13 +3,16 @@
 .atom
 .idea
 
+# Data
+/data
+
 # Environments
 venv
 env
 .env
 
 # Third party software
-./marabou
+/marabou
 .marabou
 
 # Logging & Output

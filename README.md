@@ -19,3 +19,7 @@ This option runs the project from within a docker container. It is the quickest 
 ### Option 2: Native Install
 
 This option installs the project natively on your system. Using a `venv` is recommended, but not required. Detailed instructions for this option can be found here: [Native Installation Instructions](./docs/NATIVE_INSTALL.md).
+
+## Download Dataset
+
+This repository does not include the dataset because it is too large. Download the CSV file and place it in `./data/rt_all_data.csv`.
