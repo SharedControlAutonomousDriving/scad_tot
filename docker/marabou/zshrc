@@ -1,0 +1,30 @@
+### Helpers & Aliases ###
+marabou(){
+  ${MARABOU_PATH}/build/Marabou "$@"
+}
+
+### Terminal Customizations ###
+export CLICOLOR=1
+
+### Custom Prompt ####
+source ~/.bin/git-prompt.sh
+
+getcolor(){
+  echo "%{%F{$1}%}"
+}
+
+local COLOR_BLUE=`getcolor blue`
+local COLOR_CYAN=`getcolor cyan`
+local COLOR_GREEN=`getcolor green`
+local COLOR_MAGENTA=`getcolor magenta`
+local COLOR_YELLOW=`getcolor yellow`
+local COLOR_DEFAULT="%{%f%}"
+local BOLD_START="%B"
+local BOLD_STOP="%b"
+
+venv_info(){
+  [ $VIRTUAL_ENV ] && echo "($(basename $VIRTUAL_ENV)) "
+}
+precmd(){
+  __git_ps1 "$COLOR_YELLOW$(venv_info)$COLOR_CYAN%n$COLOR_DEFAULT@$COLOR_CYAN%m$COLOR_DEFAULT:$COLOR_BLUE%~$COLOR_MAGENTA" "$COLOR_DEFAULT%(!.#.%%) " " (%s)"
+}
