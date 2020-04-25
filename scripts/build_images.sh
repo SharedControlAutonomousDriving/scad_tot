@@ -23,8 +23,8 @@ usage() { echo "Usage: $0 [-p]" 1>&2; exit 1; }
 # parse CLI options
 while getopts "hp" o; do
   case "${o}" in
-  p) PUSH_IMAGES=1 ;;
-  h|*) usage ;;
+  p)   PUSH_IMAGES=1;;
+  h|*) usage;;
   esac
 done
 shift $((OPTIND-1))
