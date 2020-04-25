@@ -18,6 +18,10 @@ secret
 /marabou
 .marabou
 
+# Build & Compilation
+__pycache__
+artifacts
+
 # Logging & Output
 logs
 .logs
