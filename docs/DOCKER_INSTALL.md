@@ -9,3 +9,7 @@ The docker [the docker image](https://hub.docker.com/r/grese/scad_tot) provides 
 ## Installation
 
 * Pull the image: **%** `docker pull grese/scad_tot`
+
+## Usage
+
+View the [docker image readme](../docker/scad_tot/README.md) for information and usage instructions for the docker image.
