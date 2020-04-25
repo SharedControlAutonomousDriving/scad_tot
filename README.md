@@ -10,7 +10,9 @@
 
 ## Installation
 
-You have two options here. Option 1 is to use the docker image. Option 2 is to install the project natively. Choose whichever you prefer.
+You have two options here. *Option 1* is to use the docker image. *Option 2* is to install the project natively. Choose whichever you prefer.
+
+Running [the docker image](https://hub.docker.com/r/grese/scad_tot) will be the simplest way to run the project for many users. However, Docker containers are intended to be ephemeral, so you may want to consider the native install if you're going to be developing frequently.
 
 ### Option 1: Docker Image
 
@@ -22,4 +24,4 @@ This option installs the project natively on your system. Using a `venv` is reco
 
 ## Download Dataset
 
-This repository does not include the dataset because it is too large. Download the CSV file and place it in `./data/rt_all_data.csv`.
+This repository does not include the dataset because it is too large. Download the CSV file and place it in `./data/rt_all_data.csv`. <!-- TODO: ADD DATASET LINK -->

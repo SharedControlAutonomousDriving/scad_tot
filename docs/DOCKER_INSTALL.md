@@ -1,6 +1,6 @@
 # Docker Installation
 
-Installing the docker image will be the quickest way to setup the project for most users.
+The docker [the docker image](https://hub.docker.com/r/grese/scad_tot) provides everything you need to run the project packed into a docker container.
 
 ## Prerequisites
 
@@ -8,9 +8,4 @@ Installing the docker image will be the quickest way to setup the project for mo
 
 ## Installation
 
-* Pull the image: `docker pull grese/scad_tot`
-
-## Usage
-
-* Start the container: `docker run -it grese/scad_tot /bin/zsh`
-
+* Pull the image: **%** `docker pull grese/scad_tot`
