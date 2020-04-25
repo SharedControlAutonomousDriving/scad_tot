@@ -6,16 +6,21 @@ To install the project locally on your system (instead of using the Docker image
 
 This section downloads the project, sets up your environment, and installs python dependencies.
 
-First, clone the repo and move into the cloned directory.
+### Download project
 
 * **%** `git clone https://github.com/grese/scad_tot.git`
 * **%** `cd scad_tot`
 
-*Recommended:&nbsp;* Create a virtual environment and install the python dependencies.
+### Create a virtual environment (recommended)
+
+Using a virtual environment is recommended. The commands below will create and setup the venv for you inside the project's root folder.
 
 * **%** `python3 -m venv venv`
 * **%** `source venv/bin/activate`
 * **%** `pip install -r requirements.txt`
+* **%** `./scripts/setup_venv.sh`
+* **%** `deactivate`
+* **%** `source venv/bin/activate`
 
 ## Marabou Installation
 
@@ -39,17 +44,12 @@ To build marabou, `cmake` and `boost` are required. According to Marabou's docum
 
 ### Add Marabou to PYTHONPATH & JUPYTER_PATH
 
-We need to tell Python where to find Marabou by updating the `PYTHONPATH` and `JUPYTER_PATH` environment variables. Since we are in a virtual environment, the commands can be added to the venv's `activate` script.
+*NOTE:* If you're using a virtual environment (venv) and already ran `./scripts/setup_venv.sh`, then you can skip this section because the paths will be automatically set when you activate the venv and restored when you deactivate.
 
-Open `./venv/bin/activate` in your favorite text editor, and add the following lines (replacing <PROJECT_ROOT> with the absolute path to the project's root folder):
+Otherwise, the `PYTHONPATH` and `JUPYTER_PATH` environment variables need to be updated to contain the path to Marabou. Either run the following commands or add them to your `.bashrc` or `.zshrc` file. Replace <PROJECT_ROOT> with the path to this project's root folder.
 
 ```zsh
-export MARABOU_PATH=<PROJECT_ROOT>/.marabou
+export MARABOU_PATH=<PROJECT_ROOT>
 export PYTHONPATH=$PYTHONPATH:$MARABOU_PATH
 export JUPYTER_PATH=$JUPYTER_PATH:$MARABOU_PATH
 ```
-
-After adding these to the venv's activate script, run the following commands:
-
-* Exit the venv: **%** `deactivate`
-* Enter the venv: **%** `source venv/bin/activate`
