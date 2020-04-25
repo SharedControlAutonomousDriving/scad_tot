@@ -1,10 +1,10 @@
 # Based on ubuntu 20.04
 FROM ubuntu:focal
 
-# Dockerfile arguments
+# Docker arguments
 ARG USER=ubuntu
 ARG HOME=/home/${USER}
-ARG MARABOU_PATH=${HOME}/marabou
+ARG MARABOU_PATH=${HOME}/.bin/marabou
 ARG MARABOU_URL=https://github.com/NeuralNetworkVerification/Marabou/archive/master.zip
 
 # Environment variables
@@ -40,7 +40,7 @@ RUN pip3 install --no-cache-dir pybind11 numpy tensorflow pandas
 RUN pip3 install --no-cache-dir onnx onnxruntime
 
 # Download, unzip, build, and setup marabou
-RUN cd ${HOME} && wget -q -O marabou.zip ${MARABOU_URL} && \
+RUN cd /tmp && wget -q -O marabou.zip ${MARABOU_URL} &&  \
     unzip -q marabou.zip && mv Marabou-master ${MARABOU_PATH} && rm -rf marabou.zip
 RUN cd ${MARABOU_PATH} && mkdir build
 RUN cd ${MARABOU_PATH}/build && cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build .
