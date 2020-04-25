@@ -11,6 +11,9 @@ venv
 env
 .env
 
+# Secret files
+secret
+
 # Third party software
 /marabou
 .marabou
@@ -26,3 +29,6 @@ log.txt
 .DS_Store
 thumbs.db
 desktop.ini
+
+# Sandbox
+sandbox
