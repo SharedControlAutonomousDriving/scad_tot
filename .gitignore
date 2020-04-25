@@ -21,3 +21,8 @@ logs
 *.log
 summary.txt
 log.txt
+
+# OS files
+.DS_Store
+thumbs.db
+desktop.ini
