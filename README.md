@@ -10,9 +10,7 @@
 
 ## Installation
 
-You have two options here. *Option 1* is to use the docker image. *Option 2* is to install the project natively. Choose whichever you prefer.
-
-Running [the docker image](https://hub.docker.com/r/grese/scad_tot) will be the simplest way to run the project for many users. However, Docker containers are intended to be ephemeral, so you may want to consider the native install if you're going to be developing frequently.
+You have two options here. *Option 1* is to use the docker image. *Option 2* is to install the project natively. Running [the docker image](https://hub.docker.com/r/grese/scad_tot) will be the simplest way to run the project for many users. However, Docker containers are intended to be ephemeral, so you may want to consider the native install if you're going to be developing frequently. Choose whichever option you prefer.
 
 ### Option 1: Docker Image
 
