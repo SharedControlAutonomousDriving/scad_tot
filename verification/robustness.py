@@ -17,28 +17,7 @@ def evaluate_sample(nnet_path, input_sample, output_sample):
             counterexamples.append(vals)
     return counterexamples
 
-def find_feature_sensitivity(nnet_path, x, samples, d_min=0.01, d_max=100.00, d_step=0.01):
-    l_dist = 0
-    r_dist = 0
-    distances = np.round(np.arange(d_min, d_max, d_step), count_decimal_places(d_step))
-    for i,(input_sample, output_sample) in enumerate(samples):
-        for d in distances:
-            if d >= l_dist:
-                l_sample = input_sample[0:x] + [input_sample[x]-d] + input_sample[x+1:]
-                l_result = evaluate_sample(nnet_path, l_sample, output_sample)
-                if len(l_result) > 0:
-                    l_dist = d
-                    break
-        for d in distances:
-            if d >= r_dist:
-                r_sample = input_sample[0:x] + [input_sample[x]+d] + input_sample[x+1:]
-                r_result = evaluate_sample(nnet_path, r_sample, output_sample)
-                if len(r_result) > 0:
-                    r_dist = d
-                    break
-    return (l_dist, r_dist)
-
-def find_feature_sensitivity2(nnet_path, x, samples, d_min=0.01, d_max=50.00, d_step=0.01):
+def find_feature_sensitivity(nnet_path, x, samples, d_min=0.01, d_max=50.00, d_step=0.01):
     def find_min_distance(sample, distances, curr_i=0, prev_i=0):
         input_sample, output_sample = sample
         d = distances[curr_i]
@@ -68,12 +47,12 @@ def find_feature_sensitivity2(nnet_path, x, samples, d_min=0.01, d_max=50.00, d_
         
         # SAT while moving backward by 1 step. done.
         else:
-            return (d, result, counterexamples)
+            return (d, counterexamples)
 
     distances = np.round(np.arange(d_min, d_max, d_step), count_decimal_places(d_step))
-    pos_result = find_min_distance(samples[0], distances)
-    neg_result = find_min_distance(samples[0], distances * -1)
-    return (pos_result, neg_result)
+    pos_d, _ = find_min_distance(samples[0], distances)
+    net_d, _ = find_min_distance(samples[0], distances * -1)
+    return (net_d, pos_d)
 
 def test_network_sensitivity(nnet_path, n_features, samples):
     results = {}
