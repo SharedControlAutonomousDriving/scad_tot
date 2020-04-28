@@ -46,42 +46,39 @@ def find_feature_sensitivity2(nnet_path, x, samples, d_min=0.01, d_max=50.00, d_
         counterexamples = evaluate_sample(nnet_path, s, output_sample)
         result = 'UNSAT' if len(counterexamples) == 0 else 'SAT'
 
-        print('C', curr_i, 'P', prev_i, 'D', d, 'R', result)
+        # # SAT while moving backward by 1 step. done.
+        # if result == 'SAT' and prev_i - curr_i == 1:
+        #     print('A')
+        #     return (d, result, counterexamples)
         
-        # if result == 'SAT' and curr_d - prev_d == 1 or ((curr_d == prev_d) and curr_d != 0):
-        # SAT while moving backward by 1 step.  DONE.
-        if result == 'SAT' and prev_i - curr_i == 1:
-            print('DONE.')
-            return (result, d)
-        
-        # SAT while moving backward. move backwards.
-        elif result == 'SAT' and prev_i - curr_i >= 0:
-            next_i = curr_i - (prev_i - curr_i)//2
-            print('SAT backward. next:', next_i)
+        # UNSAT while moving forward. move forward i*2 steps.
+        if result == 'UNSAT' and curr_i - prev_i >= 0:
+            next_i = max(1, curr_i) + (curr_i - prev_i) * 2
             return find_min_distance(sample, distances, next_i, curr_i)
         
-        # SAT while moving forward. move forward.
-        elif result == 'SAT' and curr_i - prev_i >= 0:
-            next_i = prev_i + (curr_i - prev_i)//2
-            print('SAT forward. next:', next_i)
-            return find_min_distance(sample, distances, next_i, curr_i)
-
-        # UNSAT while moving forward. move forward.
-        elif result == 'UNSAT' and curr_i - prev_i >= 0:
-            next_i = (curr_i if curr_i > 0 else 1) + (curr_i - prev_i) * 2
-            print('UNSAT forward. next:', next_i)
+        # UNSAT while moving backward. move forward to midpt b/t prev and curr.
+        elif result == 'UNSAT' and prev_i - curr_i > 0:
+            next_i = curr_i + (prev_i - curr_i) // 2
             return find_min_distance(sample, distances, next_i, curr_i)
         
-        # UNSAT while moving backward. move forward.
-        elif result == 'UNSAT' and prev_i - curr_i >= 0:
-            # next_d = (curr_d if curr_d > 0 else 1) + (curr_d - prev_d) * 2
-            next_i = curr_i + (prev_i - curr_i)//2
-            print('UNSAT backward. next:', next_i)
+        # SAT while moving backward more than 1 step. move backward.
+        elif result == 'SAT' and prev_i - curr_i > 1:
+            next_i = curr_i - (prev_i - curr_i) // 2
             return find_min_distance(sample, distances, next_i, curr_i)
+        
+        # SAT while moving forward more than 1 step. move forward.
+        elif result == 'SAT' and curr_i - prev_i > 1:
+            next_i = prev_i + (curr_i - prev_i) // 2
+            return find_min_distance(sample, distances, next_i, curr_i)
+        
+        # SAT while moving backward by 1 step. done.
+        elif result == 'SAT' and prev_i - curr_i == 1:
+            return (d, result, counterexamples)
 
     distances = np.round(np.arange(d_min, d_max, d_step), count_decimal_places(d_step))
-    # return b_search(distances, samples[0], 0, len(distances), 0)
-    return find_min_distance(samples[0], distances)
+    pos_result = find_min_distance(samples[0], distances)
+    neg_result = find_min_distance(samples[0], distances * -1)
+    return (pos_result, neg_result)
 
 def test_network_sensitivity(nnet_path, n_features, samples):
     results = {}
