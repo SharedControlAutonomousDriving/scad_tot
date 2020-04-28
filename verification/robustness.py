@@ -46,11 +46,6 @@ def find_feature_sensitivity2(nnet_path, x, samples, d_min=0.01, d_max=50.00, d_
         counterexamples = evaluate_sample(nnet_path, s, output_sample)
         result = 'UNSAT' if len(counterexamples) == 0 else 'SAT'
 
-        # # SAT while moving backward by 1 step. done.
-        # if result == 'SAT' and prev_i - curr_i == 1:
-        #     print('A')
-        #     return (d, result, counterexamples)
-        
         # UNSAT while moving forward. move forward i*2 steps.
         if result == 'UNSAT' and curr_i - prev_i >= 0:
             next_i = max(1, curr_i) + (curr_i - prev_i) * 2
@@ -72,7 +67,7 @@ def find_feature_sensitivity2(nnet_path, x, samples, d_min=0.01, d_max=50.00, d_
             return find_min_distance(sample, distances, next_i, curr_i)
         
         # SAT while moving backward by 1 step. done.
-        elif result == 'SAT' and prev_i - curr_i == 1:
+        else:
             return (d, result, counterexamples)
 
     distances = np.round(np.arange(d_min, d_max, d_step), count_decimal_places(d_step))
