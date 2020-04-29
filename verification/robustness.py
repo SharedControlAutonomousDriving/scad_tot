@@ -55,6 +55,9 @@ def find_feature_sensitivity_recursive_backtrack(nnet_path, x, samples, d_min=0.
         neg_d, _ = find_shortest_distance(sample, distances * -1)
         pos_d, _ = find_shortest_distance(sample, distances)
         results.append((neg_d, pos_d))
+        # prune distances between 0 and the max distance
+        d_stop = np.where(distances==max(neg_d*-1, pos_d))[0][0]
+        distances = distances[0:d_stop+1]
     return (max(list(zip(*results))[0]), min(list(zip(*results))[1]))
 
 def find_feature_sensitivity_bruteforce(nnet_path, x, samples, d_min=0.01, d_max=100.00, d_step=0.01):
@@ -76,6 +79,9 @@ def find_feature_sensitivity_bruteforce(nnet_path, x, samples, d_min=0.01, d_max
                 if len(r_result) > 0:
                     r_dist = d
                     break
+        # prune distances between 0 and the max distance
+        d_stop = np.where(distances==max(l_dist, r_dist))[0][0]
+        distances = distances[0:d_stop+1]
     return (-1*l_dist, r_dist)
 
 def test_network_sensitivity(nnet_path, n_features, samples):
