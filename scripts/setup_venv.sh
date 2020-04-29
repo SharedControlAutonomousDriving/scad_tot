@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-# Builds docker images for the project
+# Performs additional setup for the venv.
 #
 # Usage:
 #    ./scripts/setup_venv.sh
@@ -8,7 +8,6 @@
 #
 # Options: 
 #   - m: custom path to marabou (default is .marabou)
-#
 
 PATH_TO_MARABOU="$(pwd)/.marabou"
 _VENV_ACTIVATE="./venv/bin/activate"

@@ -6,7 +6,6 @@
 #
 # Options: 
 #   - p: push images after build
-#
 
 # image paths and names
 MARABOU_DOCKER_PATH=./docker/marabou
