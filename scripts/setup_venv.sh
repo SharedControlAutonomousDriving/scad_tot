@@ -47,6 +47,11 @@ export _OLD_PYTHONPATH=\$PYTHONPATH
 export PYTHONPATH=\$MARABOU_PATH
 export _OLD_JUPYTER_PATH=\$JUPYTER_PATH
 export JUPYTER_PATH=\$MARABOU_PATH
+
+# custom marabou command
+marabou(){
+  \$MARABOU_PATH/build/Marabou "\$@"
+}
 EOM
 
 # store new deactivate code in a temp file
@@ -61,6 +66,9 @@ deactivate () {
     unset _OLD_PYTHONPATH
     export JUPYTER_PATH=\$_OLD_JUPYTER_PATH
     unset _OLD_JUPYTER_PATH
+
+    # unset custom commands
+    unset -f marabou >/dev/null 2>&1
 
     # call original deactivate function
     __orig_deactivate__ "\$1"
