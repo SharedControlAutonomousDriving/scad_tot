@@ -76,7 +76,7 @@ def find_feature_sensitivity_bruteforce(nnet_path, x, samples, d_min=0.01, d_max
                 if len(r_result) > 0:
                     r_dist = d
                     break
-    return (l_dist, r_dist)
+    return (-1*l_dist, r_dist)
 
 def test_network_sensitivity(nnet_path, n_features, samples):
     results = {}
