@@ -1,10 +1,9 @@
 import os
 import numpy as np
-from tot_net import TOTNet
 from utils import create_logger, count_decimal_places, ms_since_1970
 from multiprocessing.pool import ThreadPool
 from tensorflow.keras.models import load_model
-from maraboupy import Marabou, MarabouUtils, MarabouCore
+from maraboupy import Marabou
 
 logger = create_logger('sensitivity')
 
