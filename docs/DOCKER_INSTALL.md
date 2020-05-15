@@ -1,6 +1,6 @@
 # Docker Installation
 
-The docker [the docker image](https://hub.docker.com/r/grese/scad_tot) provides everything you need to run the project packed into a docker container.
+The [docker image](https://hub.docker.com/r/grese/scad_tot) provides everything you need to run the project packed into a docker container.
 
 ## Prerequisites
 
