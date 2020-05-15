@@ -34,5 +34,7 @@ log.txt
 thumbs.db
 desktop.ini
 
-# Sandbox
-sandbox
+# Sandbox & Notes
+/sandbox
+sandbox.*
+/notes
