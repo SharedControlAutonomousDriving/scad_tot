@@ -35,23 +35,23 @@ def save_sensitivity_results_to_csv(results, outdir='../artifacts/sensitivity', 
     @param outdir (string): output directory
     @param outid (string): output file id
     '''
-    summary_lines = ''.join(['x','dneg','dpos'])
-    details_lines = ''.join(['x','s','dneg','dpos'])
+    summary_lines = ['x,dneg,dpos']
+    details_lines = ['x,s,dneg,dpos']
     for x_id, result in results.items():
         x = int(x_id[1:])
         summary, details = result
-        summary_lines.append(','.join([x, summary[0], summary[1]]))
-        details_lines.extend([','.join([x, s, detail[0], detail[1]]) for s,detail in enumerate(details)])
+        summary_lines.append(','.join([str(x), str(summary[0]), str(summary[1])]))
+        details_lines.extend([','.join([str(x), str(s), str(detail[0]), str(detail[1])]) for s,detail in enumerate(details)])
     summary_file = os.path.join(outdir, f'summary_{outid}.csv' if outid else 'summary.csv')
     details_file = os.path.join(outdir, f'details_{outid}.csv' if outid else 'details.csv')
     if not os.path.exists(outdir):
-        os.mkdirs(outdir)
+        os.makedirs(outdir)
     with open(summary_file, 'w') as f:
         f.writelines(summary_lines)
-        logger(f'wrote summary to {summary_file}')
+        logger.info(f'wrote summary to {summary_file}')
     with open(details_file, 'w') as f:
         f.writelines(details_lines)
-        logger(f'wrote detils to {details_file}')
+        logger.info(f'wrote detils to {details_file}')
 
 def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.001, d_max=100, multithread=False, verbose=0):
     '''
@@ -69,8 +69,7 @@ def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.001, d_m
     def find_distance(s, sign):
         inputs, outputs = samples[s]
         exp_cat = outputs.index(max(outputs))
-        lbound = d_min
-        ubound = d_max
+        lbound, ubound = d_min, d_max
         dist = 0
         for dp in range(dplaces+1):
             prec = round(1/(10**dp), dp)
@@ -88,7 +87,7 @@ def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.001, d_m
                     break
             # give up if dist is zero after first round.
             if dist == 0:
-                if verbose > 0: logger.warning(f'no {dlabel(sign)} found for x{x}_s{s}@p={prec}')
+                if verbose > 0: logger.warning(f'no {dlabel(sign)} found for x{x}_s{s}@p{prec}')
                 break
         if verbose > 0: logger.info(f'x{x}_s{s} {dlabel(sign)}={dist}')
         return dist
@@ -123,7 +122,7 @@ def find_sensitivity_boundaries(model_path, samples, d_min=0.001, d_max=100, mul
     @d_max (float): max distance to consider
     @multithread (bool): perform + and - in parallel (default false)
     @verbose (int): extra logging (0, 1, 2) (default 0)
-    @return (dict): {x0:((negdist,posdist), [(s0_ndist,s0_pdist)...(sN_ndist,sN_pdist)]),...}
+    @return (dict): {x0:((negdist,posdist), [(x0s0_ndist,x0s1_pdist)...(xNsM_ndist,xNsM_pdist)]),...}
     '''
     n_features = len(samples[0][0])
     results = {}
