@@ -19,7 +19,18 @@ def evaluate_sample(nnet_path, input_sample, output_sample):
     result = 'UNSAT' if pred_cat == expected_cat else 'SAT'
     return (result, pred)
 
-def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.0001, d_max=100, multithread=False, verbose=1):
+def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.001, d_max=100, multithread=False, verbose=0):
+    '''
+    finds +/- sensitivity boundaries of a feature on a given set of input samples (note predictions must be correct)
+    
+    @param model_path (string): h5 or pb model path
+    @param x (int): index of feature (x0 to xN)
+    @param samples (list): list of tuples containing input and output samples
+    @d_min (float): min distance to consider (also used as precision) (default false)
+    @d_max (float): max distance to consider (default false)
+    @multithread (bool): perform + and - in parallel (default false)
+    @verbose (int): extra logging (0, 1, 2) (default 0)
+    '''
     def find_distance(s, sign):
         inputs, outputs = samples[s]
         exp_cat = outputs.index(max(outputs))
@@ -38,13 +49,13 @@ def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.0001, d_
                     # adjust bounds for next highest precision
                     lbound = dist - prec if dist - prec > 0 else d_min
                     ubound = dist
-                    if verbose > 2: logger.info(f'x{x}_s{s}@p{prec}: {dlabel(sign)}={dist}')
+                    if verbose > 1: logger.info(f'x{x}_s{s}@p{prec}: {dlabel(sign)}={dist}')
                     break
             # give up if dist is zero after first round.
             if dist == 0:
-                # logger.warning(f'no {dlabel(sign)} found for x{x}_s{s}@p={prec}')
+                if verbose > 0: logger.warning(f'no {dlabel(sign)} found for x{x}_s{s}@p={prec}')
                 break
-        if verbose > 1: logger.info(f'x{x}_s{s} {dlabel(sign)}={dist}')
+        if verbose > 0: logger.info(f'x{x}_s{s} {dlabel(sign)}={dist}')
         return dist
 
     model = load_model(model_path)
@@ -67,11 +78,21 @@ def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.0001, d_
 
     return ((negd, posd), results)
 
-def find_sensitivity_boundaries(nnet_path, samples, d_min=0.001, d_max=100, multithread=False, verbose=1):
+def find_sensitivity_boundaries(model_path, samples, d_min=0.001, d_max=100, multithread=False, verbose=0):
+    '''
+    finds sensitivity for all features relative to the provided samples
+
+    @param model_path (string): h5 or pb model path
+    @param samples (list): list of samples
+    @d_min (float): min distance to consider
+    @d_max (float): max distance to consider
+    @multithread (bool): perform + and - in parallel (default false)
+    @verbose (int): extra logging (0, 1, 2) (default 0)
+    '''
     n_features = len(samples[0][0])
     results = {}
     for x in range(n_features):
-        result = find_feature_sensitivity_boundaries(nnet_path, x, samples, d_min=d_min, d_max=d_max, multithread=multithread, verbose=verbose)
+        result = find_feature_sensitivity_boundaries(model_path, x, samples, d_min=d_min, d_max=d_max, multithread=multithread, verbose=verbose)
         results[f'x{x}'] = result
     return results
     
