@@ -1,12 +1,11 @@
 import numpy as np
-import time
 from tot_net import TOTNet
-from bisect import bisect_left
-from utils import count_decimal_places
-from maraboupy import Marabou, MarabouUtils, MarabouCore
+from utils import create_logger, count_decimal_places, ms_since_1970
+from multiprocessing.pool import ThreadPool
 from tensorflow.keras.models import load_model
+from maraboupy import Marabou, MarabouUtils, MarabouCore
 
-ms_since_1970 = lambda: int(round(time.time() * 1000))
+logger = create_logger('sensitivity')
 
 def evaluate_sample(nnet_path, input_sample, output_sample):
     expected_cat = output_sample.index(max(output_sample))
@@ -20,96 +19,9 @@ def evaluate_sample(nnet_path, input_sample, output_sample):
     result = 'UNSAT' if pred_cat == expected_cat else 'SAT'
     return (result, pred)
 
-def find_feature_sensitivity_boundaries_binarysearch(nnet_path, x, samples, d_min=0.01, d_max=100.00, verbose=False):
-    def find_distance(sample, s_num, sign):
-        start = ms_since_1970()
-        prev_d = 0
-        d = d_min
-        inputs, outputs = sample
-        while(d < d_max):
-            s = inputs[0:x] + [inputs[x]+d*sign] + inputs[x+1:]
-            result,prediction = evaluate_sample(nnet_path, s, outputs)
-            # unsat on forward movement. move forward.
-            if result == 'UNSAT' and d > prev_d:
-                next_d = d + (d - prev_d) * 2
-            # unsat on backward movement. move forward halfway b/t d and prev.
-            elif result == 'UNSAT' and d < prev_d:
-                next_d = d + (prev_d - d) / 2
-            # sat on forward movement. move backward halfway b/t prev and d
-            elif result == 'SAT' and d > prev_d:
-                next_d = d - (d - prev_d) / 2
-            # sat on backward movement. move backward halfway b/t d and prev.
-            elif result == 'SAT' and d < prev_d:
-                next_d = d - (prev_d - d) / 2
-            else:
-                if verbose: print(f's{s_num}_x{x} {"+" if sign == 1 else "-1"}dist: {sign * d} ({ms_since_1970()-start}ms)')
-                return d
-            prev_d = d
-            d = next_d
-        return 0
-    results = [(-1*find_distance(s, i, -1), find_distance(s, i, +1)) for i,s in enumerate(samples)]
-    ld = max([d for d in [r for r in zip(*results)][0] if d is not 0] or [0])
-    rd = min([d for d in [r for r in zip(*results)][1] if d is not 0] or [0])
-    return ((ld, rd), results)
-
-def find_feature_sensitivity_boundaries_bruteforce(nnet_path, x, samples, d_min=0.001, d_max=100.00, d_step=0.0001, verbose=False):
-    def find_distance(sample, s_num, sign):
-        start = ms_since_1970()
-        inputs, outputs = sample
-        d = d_min
-        while(d < d_max):
-            s = inputs[0:x] + [inputs[x]+(d*sign)] + inputs[x+1:]
-            result,_ = evaluate_sample(nnet_path, s, outputs)
-            if result == 'SAT':
-                if verbose: print(f's{s_num}_x{x} {"+" if sign == 1 else "-1"}dist: {sign * d} ({ms_since_1970()-start}ms)')
-                return d
-            d += d_step
-        return 0
-    results = [(-1*find_distance(s, i, -1), find_distance(s, i, +1)) for i,s in enumerate(samples)]
-    ld = max([d for d in [r for r in zip(*results)][0] if d is not 0] or [0])
-    rd = min([d for d in [r for r in zip(*results)][1] if d is not 0] or [0])
-    return ((ld, rd), results)
-
-def find_feature_sensitivity_boundaries_bruteforce_optimized(h5_path, x, samples, d_min=0.001, d_max=100.00, d_step=0.0001, verbose=False):
-    def find_distance(sample, s_num, sign):
-        start = ms_since_1970()
-        inputs, outputs = sample
-        exp_cat = outputs.index(max(outputs))
-        distances = np.arange(d_min, d_max, d_step)
-        adj_s = [inputs[0:x]+[inputs[x]+(d*sign)]+inputs[x+1:] for d in distances]
-        predictions = model.predict(adj_s)
-        for i,pred in enumerate(predictions):
-            cat = list(pred).index(max(pred))
-            if cat != exp_cat:
-                if verbose: print(f's{s_num}_x{x} {"+" if sign == 1 else "-1"}dist: {sign * distances[i]} ({ms_since_1970()-start}ms)')
-                return distances[i]
-        return 0
-    model = load_model(h5_path)
-    results = [(-1*find_distance(s, i, -1), find_distance(s, i, +1)) for i,s in enumerate(samples)]
-    ld = max([d for d in [r for r in zip(*results)][0] if d is not 0] or [0])
-    rd = min([d for d in [r for r in zip(*results)][1] if d is not 0] or [0])
-    return ((ld, rd), results)
-
-def find_sensitivity_boundaries(nnet_path, samples, d_min=0.001, d_max=100, d_step=0.0001, bruteforce=True, use_marabou=True, verbose=False):
-    n_features = len(samples[0][0])
-    results = {}
-    for x in range(n_features):
-        if bruteforce:
-            if use_marabou:
-                result = find_feature_sensitivity_boundaries_bruteforce(nnet_path, x, samples, d_min=d_min, d_max=d_max, d_step=d_step, verbose=verbose)
-            else:
-                result = find_feature_sensitivity_boundaries_bruteforce_optimized(nnet_path, x, samples, d_min=d_min, d_max=d_max, d_step=d_step, verbose=verbose)
-        else:
-            result = find_feature_sensitivity_boundaries_binarysearch(nnet_path, x, samples, d_min=d_min, d_max=d_max, verbose=verbose)
-        results[f'x{x}'] = result
-        print(f'x{x}: ', result[0])
-    return results
-
-
-def find_feature_sensitivity_boundaries_x(model_path, x, samples, d_min=0.0001, d_max=100, verbose=False):
-    def find_distance(s_idx, sign):
-        start = ms_since_1970()
-        inputs, outputs = samples[s_idx]
+def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.0001, d_max=100, multithread=False, verbose=1):
+    def find_distance(s, sign):
+        inputs, outputs = samples[s]
         exp_cat = outputs.index(max(outputs))
         lbound = d_min
         ubound = d_max
@@ -126,33 +38,40 @@ def find_feature_sensitivity_boundaries_x(model_path, x, samples, d_min=0.0001, 
                     # adjust bounds for next highest precision
                     lbound = dist - prec if dist - prec > 0 else d_min
                     ubound = dist
-                    print(f'break @ {dist}, newbounds: ({lbound},{ubound})')
+                    if verbose > 2: logger.info(f'x{x}_s{s}@p{prec}: {dlabel(sign)}={dist}')
                     break
-            # print(f'dp={dp}, dist={dist}')
-        # print(f'{"-" if sign < 0 else "+"}dist: {dist}')
+            # give up if dist is zero after first round.
+            if dist == 0:
+                # logger.warning(f'no {dlabel(sign)} found for x{x}_s{s}@p={prec}')
+                break
+        if verbose > 1: logger.info(f'x{x}_s{s} {dlabel(sign)}={dist}')
         return dist
-    dplaces = count_decimal_places(d_min)
+
     model = load_model(model_path)
-    results = [(-1*find_distance(i, -1), find_distance(i, +1)) for i in range(len(samples))]
-    ld = max([d for d in [r for r in zip(*results)][0] if d is not 0] or [0])
-    rd = min([d for d in [r for r in zip(*results)][1] if d is not 0] or [0])
-    return ((ld, rd), results)
+    start = ms_since_1970()
+    dplaces = count_decimal_places(d_min)
+    dlabel = lambda sign: f'{"+" if sign > 0 else "-"}dist' # for logging
+    results = []
+    if multithread:
+        pool = ThreadPool(processes=2)
+        for i in range(len(samples)):
+            nthread = pool.apply_async(find_distance, (i, -1))
+            pthread = pool.apply_async(find_distance, (i, 1))
+            results.append((-1*nthread.get(), pthread.get()))
+    else:
+        results = [(-1*find_distance(i,-1), find_distance(i,+1)) for i in range(len(samples))]
+    
+    negd = max([d for d in [r for r in zip(*results)][0] if d is not 0] or [0])
+    posd = min([d for d in [r for r in zip(*results)][1] if d is not 0] or [0])
+    if verbose > 0: logger.info(f'x{x}: ({negd}, {posd}) ({ms_since_1970() - start}ms)')
 
+    return ((negd, posd), results)
 
-# def find_dist(target, d_min, d_max):
-#     dplaces = count_decimal_places(d_min)
-#     lb = d_min
-#     ub = d_max
-#     d = 0
-#     for dp in range(dplaces+1):
-#         prec = round(1/(10**dp), dp)
-#         dists = np.arange(lb, ub, prec)
-#         for dist in dists:
-#             if dist > target:
-#                 lb = dist - prec if dist - prec > 0 else d_min
-#                 ub = dist
-#                 d = dist
-#                 break
-#         print(f'Bounds: ({lb}, {ub})')
-#     return d
+def find_sensitivity_boundaries(nnet_path, samples, d_min=0.001, d_max=100, multithread=False, verbose=1):
+    n_features = len(samples[0][0])
+    results = {}
+    for x in range(n_features):
+        result = find_feature_sensitivity_boundaries(nnet_path, x, samples, d_min=d_min, d_max=d_max, multithread=multithread, verbose=verbose)
+        results[f'x{x}'] = result
+    return results
     

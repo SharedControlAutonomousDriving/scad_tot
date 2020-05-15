@@ -40,10 +40,22 @@ class TOTNet:
         variable = self.ipq.inputVariableByIndex(x_index)
         self.ipq.setUpperBound(variable, scaled_value)
     
+    def adjust_input_upper_bound(self, x_index, adjustment):
+        assert(x_index < self.ipq.getNumInputVariables())
+        variable = self.ipq.inputVariableByIndex(x_index)
+        value = self.ipq.getUpperBound(variable)
+        self.ipq.setUpperBound(variable, value+adjustment)
+    
+    def adjust_input_lower_bound(self, x_index, adjustment):
+        assert(x_index < self.ipq.getNumInputVariables())
+        variable = self.ipq.inputVariableByIndex(x_index)
+        value = self.ipq.getLowerBound(variable)
+        self.ipq.setLowerBound(variable, value+adjustment)
+    
     def set_expected_category(self, y_index):
         n_outputs = self.ipq.getNumOutputVariables()
         assert(y_index < n_outputs)
-        other_cats_y = [y for y in range(y_index) if y is not y_index]
+        other_cats_y = [y for y in range(n_outputs) if y is not y_index]
         for other_y in other_cats_y:
             eq = MarabouCore.Equation(MarabouCore.Equation.LE)
             eq.addAddend(1, self.ipq.outputVariableByIndex(other_y))
@@ -65,14 +77,15 @@ class TOTNet:
     def solve(self, output_path='', timeout=0):
         options = createOptions(timeoutInSeconds=timeout)
         vals, stats = MarabouCore.solve(self.ipq, options, output_path)
-        assignment = []
+        assignment = ([], [])
         if len(vals) > 0:
             for i in range(self.ipq.getNumInputVariables()):
-                assignment.append(f'input {i} = {vals[self.ipq.inputVariableByIndex(i)]}')
+                assignment[0].append(vals[self.ipq.inputVariableByIndex(i)])
+                # assignment.append(f'input {i} = {vals[self.ipq.inputVariableByIndex(i)]}')
             for i in range(self.ipq.getNumOutputVariables()):
-                assignment.append(f'output {i} = {vals[self.ipq.outputVariableByIndex(i)]}')
+                assignment[1].append(vals[self.ipq.outputVariableByIndex(i)])
+                # assignment.append(f'output {i} = {vals[self.ipq.outputVariableByIndex(i)]}')
         return [assignment, stats]
-    
+
     def reset_query(self):
         self.load_query()
-
