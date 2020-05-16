@@ -8,10 +8,10 @@ from utils import create_logger, count_decimal_places, ms_since_1970, TOTUtils
 from maraboupy import Marabou
 from argparse import ArgumentParser
 
-logger = create_logger('sensitivity')
 default_outdir = './logs/sensitivity'
 default_dmin = 0.00001
 default_dmax = 100.0
+logger = create_logger('sensitivity', logdir=default_outdir)
 
 def evaluate_sample(nnet_path, inputs, outputs):
     '''
@@ -139,7 +139,7 @@ def find_sensitivity_boundaries(model_path, samples, d_min=default_dmin, d_max=d
 
 def main():
     '''
-    Usage: python3 verification/sensitivity.py -m MODELPATH -d DATAPATH [-df FRAC -dmin DMIN -dmax DMAX -mt -sr -ss -o OUTDIR -v V]
+    Usage: python3 verification/sensitivity.py -m MODELPATH -d DATAPATH [-df FRAC -dmin DMIN -dmax DMAX -mt -sr -ss -sl -o OUTDIR -v V]
     '''
     parser = ArgumentParser()
     parser.add_argument('-m', '--modelpath', required=True)
@@ -150,9 +150,12 @@ def main():
     parser.add_argument('-mt', '--multithread', action='store_true')
     parser.add_argument('-sr', '--saveresults', action='store_true')
     parser.add_argument('-ss', '--savesamples', action='store_true')
+    parser.add_argument('-sl', '--savelogs', action='store_true')
     parser.add_argument('-o', '--outdir', default=default_outdir)
     parser.add_argument('-v', '--verbose', type=int, default=0)
     args = parser.parse_args()
+    # configure logger
+    logger = create_logger('sensitivity', to_file=args.savelogs, logdir=args.outdir)
     # load % of samples, and filter out incorrect predictions
     samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.modelpath)
     find_sensitivity_boundaries(args.modelpath, samples, d_min=args.dmin, d_max=args.dmax, multithread=args.multithread, verbose=args.verbose, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir)

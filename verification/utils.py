@@ -10,7 +10,7 @@ def count_decimal_places(f):
 def ms_since_1970():
     return int(round(time.time() * 1000))
 
-def create_logger(name, level=logging.DEBUG, to_file=False, to_console=True, logpath='logs'):
+def create_logger(name, level=logging.DEBUG, to_file=False, to_console=True, logdir='logs'):
     logger = logging.getLogger(name)
     logger.setLevel(level)
     formatter = logging.Formatter(logging.BASIC_FORMAT)
@@ -20,7 +20,9 @@ def create_logger(name, level=logging.DEBUG, to_file=False, to_console=True, log
         ch.setLevel(level)
         logger.addHandler(ch)
     if to_file:
-        filename = os.path.join(logpath, f'{name}.log')
+        if not os.path.exists(logdir):
+            os.makedirs(logdir, mode=0o755)
+        filename = os.path.join(logdir, f'{name}.log')
         fh = logging.FileHandler(filename=filename)
         fh.setFormatter(formatter)
         fh.setLevel(level)
