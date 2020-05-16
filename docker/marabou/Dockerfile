@@ -43,7 +43,7 @@ RUN pip3 install --no-cache-dir onnx onnxruntime
 RUN cd /tmp && wget -q -O marabou.zip ${MARABOU_URL} &&  \
     unzip -q marabou.zip && mv Marabou-master ${MARABOU_PATH} && rm -rf marabou.zip
 RUN cd ${MARABOU_PATH} && mkdir build
-RUN cd ${MARABOU_PATH}/build && cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build .
+RUN cd ${MARABOU_PATH}/build && cmake .. && cmake --build .
 RUN chown -R ${USER}:${USER} $MARABOU_PATH
 
 # Configure default user, cwd, and shell for docker
