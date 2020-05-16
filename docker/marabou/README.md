@@ -4,7 +4,7 @@ The [marabou docker image](https://hub.docker.com/r/grese/marabou) is an ubuntu-
 
 ## Features
 
-* Based on Ubuntu 20.04 (focal)
+* Based on Ubuntu 18.04 (bionic)
 * Python3 installed
 * Numpy, Tensorflow, Pandas, and other useful pip packages
 * Marabou & Marabou Python APIs installed

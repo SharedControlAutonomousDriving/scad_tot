@@ -1,7 +1,7 @@
-# Based on ubuntu 20.04
-FROM ubuntu:focal
+# Based on ubuntu 18.04
+FROM ubuntu:bionic
 
-# Docker arguments
+# Dockerfile arguments
 ARG USER=ubuntu
 ARG HOME=/home/${USER}
 ARG MARABOU_PATH=${HOME}/.bin/marabou
@@ -44,17 +44,17 @@ RUN pip3 install --no-cache-dir onnx onnxruntime
 
 # Download, unzip, build, and setup marabou
 RUN cd /tmp && wget -q -O marabou.zip ${MARABOU_URL} &&  \
-    unzip -q marabou.zip && mv Marabou-master ${MARABOU_PATH} && rm -rf marabou.zip
-RUN cd ${MARABOU_PATH} && mkdir build
-RUN cd ${MARABOU_PATH}/build && cmake .. -DBUILD_PYTHON=ON && cmake --build .
-RUN chown -R ${USER}:${USER} $MARABOU_PATH
+    unzip -q marabou.zip && mv Marabou-master $MARABOU_PATH && rm -rf marabou.zip
+RUN cd $MARABOU_PATH && mkdir build
+RUN cd $MARABOU_PATH/build && cmake .. -DBUILD_PYTHON=ON && cmake --build .
+RUN chown -R $USER:$USER $MARABOU_PATH
 
 # Download, unzip, and setup nnet_tools
 RUN cd /tmp && wget -q -O nnet_tools.zip ${NNET_TOOLS_URL} &&  \
-    unzip -q nnet_tools.zip && mv NNet-master ${NNET_TOOLS_PATH} && rm -rf nnet_tools.zip
-RUN chown -R ${USER}:${USER} $NNET_TOOLS_PATH
+    unzip -q nnet_tools.zip && mv NNet-master $NNET_TOOLS_PATH && rm -rf nnet_tools.zip
+RUN chown -R $USER:$USER $NNET_TOOLS_PATH
 
 # Configure default user, cwd, and shell for docker
 USER ${USER}
-WORKDIR /home/${USER}
+WORKDIR ${HOME}
 CMD /bin/zsh
