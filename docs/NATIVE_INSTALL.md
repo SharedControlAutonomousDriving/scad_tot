@@ -38,7 +38,7 @@ To build marabou, `cmake` and `boost` are required. According to Marabou's docum
 * Download: **%** `wget https://github.com/NeuralNetworkVerification/Marabou/archive/master.zip -O marabou.zip`
 * Decompress: **%** `unzip marabou.zip && mv Marabou-master .marabou && rm marabou.zip`
 * Create build folder: **%** `cd .marabou && mkdir build && cd build`
-* Configure: **%** `cmake .. -DCMAKE_BUILD_TYPE=Release`
+* Configure: **%** `cmake .. -DBUILD_PYTHON=ON`
 * Build: **%** `cmake --build .`
 * Go back to project root: **%** `cd ../../`
 
