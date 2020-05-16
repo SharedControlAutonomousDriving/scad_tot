@@ -79,8 +79,8 @@ def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=default_dm
         for dp in range(dplaces+1):
             prec = round(1/(10**dp), dp)
             distances = np.arange(lbound, ubound, prec)
-            adj_s = [inputs[0:x]+[inputs[x]+(d*sign)]+inputs[x+1:] for d in distances]
-            predictions = model.predict(adj_s) if len(adj_s) > 0 else []
+            dsamples = [inputs[0:x]+[inputs[x]+(d*sign)]+inputs[x+1:] for d in distances]
+            predictions = model.predict(dsamples) if len(dsamples) > 0 else []
             # find first prediction where the category changed...
             for i,pred in enumerate(predictions):
                 if list(pred).index(max(pred)) != exp_cat:
@@ -137,7 +137,7 @@ def find_sensitivity_boundaries(model_path, samples, d_min=default_dmin, d_max=d
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
-def main():
+if __name__ == '__main__':
     '''
     Usage: python3 verification/sensitivity.py -m MODELPATH -d DATAPATH [-df FRAC -dmin DMIN -dmax DMAX -mt -sr -ss -sl -o OUTDIR -v V]
     '''
@@ -155,10 +155,8 @@ def main():
     parser.add_argument('-v', '--verbose', type=int, default=0)
     args = parser.parse_args()
     # configure logger
+    for handler in logger.handlers[:]: logger.removeHandler(handler)    
     logger = create_logger('sensitivity', to_file=args.savelogs, logdir=args.outdir)
     # load % of samples, and filter out incorrect predictions
     samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.modelpath)
     find_sensitivity_boundaries(args.modelpath, samples, d_min=args.dmin, d_max=args.dmax, multithread=args.multithread, verbose=args.verbose, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir)
-
-if __name__ == '__main__':
-    main()

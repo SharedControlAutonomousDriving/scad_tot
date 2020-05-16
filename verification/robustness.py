@@ -98,7 +98,7 @@ def find_local_robustness_boundaries(model_path, samples, d_min=0.001, d_max=100
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
-def main():
+if __name__ == '__main__':
     '''
     Usage: python3 verification/robustness.py -m MODELPATH -d DATAPATH [-df FRAC -dmin DMIN -dmax DMAX -mt -sr -ss -sl -o OUTDIR -v V]
     '''
@@ -116,11 +116,8 @@ def main():
     parser.add_argument('-v', '--verbose', type=int, default=0)
     args = parser.parse_args()
     # configure logger
+    for handler in logger.handlers[:]: logger.removeHandler(handler)  
     logger = create_logger('robustness', to_file=args.savelogs, logdir=args.outdir)
     # load % of samples, and filter out incorrect predictions
     samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.modelpath)
     find_local_robustness_boundaries(args.modelpath, samples, d_min=args.dmin, d_max=args.dmax, multithread=args.multithread, verbose=args.verbose, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir)
-
-if __name__ == '__main__':
-    main()
-
