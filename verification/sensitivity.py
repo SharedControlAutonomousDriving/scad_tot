@@ -1,11 +1,17 @@
+#!/usr/bin/python3
+
 import os
 import numpy as np
-from utils import create_logger, count_decimal_places, ms_since_1970
 from multiprocessing.pool import ThreadPool
 from tensorflow.keras.models import load_model
+from utils import create_logger, count_decimal_places, ms_since_1970, TOTUtils
 from maraboupy import Marabou
+from argparse import ArgumentParser
 
 logger = create_logger('sensitivity')
+default_outdir = './logs/sensitivity'
+default_dmin = 0.00001
+default_dmax = 100.0
 
 def evaluate_sample(nnet_path, inputs, outputs):
     '''
@@ -27,23 +33,22 @@ def evaluate_sample(nnet_path, inputs, outputs):
     result = 'UNSAT' if pred_cat == expected_cat else 'SAT'
     return (result, pred)
 
-def save_sensitivity_results_to_csv(results, outdir='../artifacts/sensitivity', outid=None):
+def save_sensitivity_results_to_csv(results, outdir=default_outdir):
     '''
     saves sensitivity summary and detailed results in csv format.
 
     @param results (dict): sensitivity results dictionary ({x0: (summary_tuple, details_list), ...})
     @param outdir (string): output directory
-    @param outid (string): output file id
     '''
-    summary_lines = ['x,dneg,dpos']
-    details_lines = ['x,s,dneg,dpos']
+    summary_lines = ['x,dneg,dpos\n']
+    details_lines = ['x,s,dneg,dpos\n']
     for x_id, result in results.items():
         x = int(x_id[1:])
         summary, details = result
-        summary_lines.append(','.join([str(x), str(summary[0]), str(summary[1])]))
-        details_lines.extend([','.join([str(x), str(s), str(detail[0]), str(detail[1])]) for s,detail in enumerate(details)])
-    summary_file = os.path.join(outdir, f'summary_{outid}.csv' if outid else 'summary.csv')
-    details_file = os.path.join(outdir, f'details_{outid}.csv' if outid else 'details.csv')
+        summary_lines.append(','.join([str(x), str(summary[0]), str(summary[1])])+'\n')
+        details_lines.extend([','.join([str(x), str(s), str(detail[0]), str(detail[1])])+'\n' for s,detail in enumerate(details)])
+    summary_file = os.path.join(outdir, 'summary.csv')
+    details_file = os.path.join(outdir, 'details.csv')
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     with open(summary_file, 'w') as f:
@@ -53,9 +58,9 @@ def save_sensitivity_results_to_csv(results, outdir='../artifacts/sensitivity', 
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.001, d_max=100, multithread=False, verbose=0):
+def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=default_dmin, d_max=default_dmax, multithread=False, verbose=0):
     '''
-    finds +/- sensitivity boundaries of a feature on a given set of input samples (note predictions must be correct)
+    finds +/- sensitivity boundaries of a feature on a set of input samples (note predictions must be correct)
     
     @param model_path (string): h5 or pb model path
     @param x (int): index of feature (x0 to xN)
@@ -100,33 +105,57 @@ def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=0.001, d_m
     if multithread:
         pool = ThreadPool(processes=2)
         for i in range(len(samples)):
-            nthread = pool.apply_async(find_distance, (i, -1))
-            pthread = pool.apply_async(find_distance, (i, 1))
+            nthread, pthread = pool.apply_async(find_distance,(i,-1)), pool.apply_async(find_distance,(i,1))
             results.append((-1*nthread.get(), pthread.get()))
     else:
         results = [(-1*find_distance(i,-1), find_distance(i,+1)) for i in range(len(samples))]
-    
     negd = max([d for d in [r for r in zip(*results)][0] if d is not 0] or [0])
     posd = min([d for d in [r for r in zip(*results)][1] if d is not 0] or [0])
     if verbose > 0: logger.info(f'x{x}: ({negd}, {posd}) ({ms_since_1970() - start}ms)')
-
     return ((negd, posd), results)
 
-def find_sensitivity_boundaries(model_path, samples, d_min=0.001, d_max=100, multithread=False, verbose=0, save_results=False):
+def find_sensitivity_boundaries(model_path, samples, d_min=default_dmin, d_max=default_dmax, multithread=False, verbose=0, save_results=False, save_samples=False, outdir=default_outdir):
     '''
-    finds sensitivity for all features relative to the provided samples
+    finds sensitivity for all features on provided samples
 
     @param model_path (string): h5 or pb model path
     @param samples (list): list of samples
-    @d_min (float): min distance to consider
-    @d_max (float): max distance to consider
-    @multithread (bool): perform + and - in parallel (default false)
-    @verbose (int): extra logging (0, 1, 2) (default 0)
+    @param d_min (float): min distance to consider
+    @param d_max (float): max distance to consider
+    @param multithread (bool): perform + and - in parallel (default false)
+    @param verbose (int): extra logging (0, 1, 2) (default 0)
+    @param save_results (bool): save results to csv files
+    @param save_samples (bool): save samples to csv file
+    @param outdir (string): output directory for csv files
     @return (dict): {x0:((negdist,posdist), [(x0s0_ndist,x0s1_pdist)...(xNsM_ndist,xNsM_pdist)]),...}
     '''
     n_features = len(samples[0][0])
     results = {}
     for x in range(n_features):
         results[f'x{x}'] = find_feature_sensitivity_boundaries(model_path, x, samples, d_min=d_min, d_max=d_max, multithread=multithread, verbose=verbose)
-    if save_results: save_sensitivity_results_to_csv(results)
+    if save_results: save_sensitivity_results_to_csv(results, outdir=outdir)
+    if save_samples: TOTUtils.save_samples_to_csv(samples, os.path.join(outdir, 'samples.csv'))
     return results
+
+def main():
+    '''
+    Usage: python3 verification/sensitivity.py -m MODELPATH -d DATAPATH [-df FRAC -dmin DMIN -dmax DMAX -mt -sr -ss -o OUTDIR -v V]
+    '''
+    parser = ArgumentParser()
+    parser.add_argument('-m', '--modelpath', required=True)
+    parser.add_argument('-d', '--datapath', required=True)
+    parser.add_argument('-df', '--datafrac', type=float, default=1)
+    parser.add_argument('-dmin', '--dmin', type=float, default=default_dmin)
+    parser.add_argument('-dmax', '--dmax', type=float, default=default_dmax)
+    parser.add_argument('-mt', '--multithread', action='store_true')
+    parser.add_argument('-sr', '--saveresults', action='store_true')
+    parser.add_argument('-ss', '--savesamples', action='store_true')
+    parser.add_argument('-o', '--outdir', default=default_outdir)
+    parser.add_argument('-v', '--verbose', type=int, default=0)
+    args = parser.parse_args()
+    # load % of samples, and filter out incorrect predictions
+    samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.modelpath)
+    find_sensitivity_boundaries(args.modelpath, samples, d_min=args.dmin, d_max=args.dmax, multithread=args.multithread, verbose=args.verbose, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir)
+
+if __name__ == '__main__':
+    main()
