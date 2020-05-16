@@ -8,6 +8,7 @@ The [marabou docker image](https://hub.docker.com/r/grese/marabou) is an ubuntu-
 * Python3 installed
 * Numpy, Tensorflow, Pandas, and other useful pip packages
 * Marabou & Marabou Python APIs installed
+* Standord's [NNet format tools](https://github.com/sisl/NNet) installed
 * ZShell is default shell
 * Alias to run marabou as a command
 
