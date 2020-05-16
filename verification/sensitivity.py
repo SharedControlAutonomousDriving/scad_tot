@@ -50,7 +50,7 @@ def save_sensitivity_results_to_csv(results, outdir=default_outdir):
     summary_file = os.path.join(outdir, 'summary.csv')
     details_file = os.path.join(outdir, 'details.csv')
     if not os.path.exists(outdir):
-        os.makedirs(outdir)
+        os.makedirs(outdir, mode=0o755)
     with open(summary_file, 'w') as f:
         f.writelines(summary_lines)
         logger.info(f'wrote summary to {summary_file}')
@@ -134,7 +134,7 @@ def find_sensitivity_boundaries(model_path, samples, d_min=default_dmin, d_max=d
     for x in range(n_features):
         results[f'x{x}'] = find_feature_sensitivity_boundaries(model_path, x, samples, d_min=d_min, d_max=d_max, multithread=multithread, verbose=verbose)
     if save_results: save_sensitivity_results_to_csv(results, outdir=outdir)
-    if save_samples: TOTUtils.save_samples_to_csv(samples, os.path.join(outdir, 'samples.csv'))
+    if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
 def main():

@@ -131,16 +131,18 @@ class TOTUtils:
         return filtered
     
     @staticmethod
-    def save_samples_to_csv(samples, output_file):
+    def save_samples_to_csv(samples, outdir):
         '''
         saves samples to a single csv file
 
         @param samples (list): list of input samples (tuples contianing inputs & outputs)
         @param output_file (string): output file path
         '''
+        if not os.path.exists(outdir):
+            os.makedirs(outdir, mode=0o755)
         df = pd.concat([
             pd.DataFrame([s[0] for s in samples], columns=TOTUtils._features),
             pd.DataFrame([s[1] for s in samples], columns=[f'TOT_{c}' for c in TOTUtils._categories])
             ], axis=1)
-        df.to_csv(output_file)
+        df.to_csv(os.path.join(outdir, 'samples.csv'))
         

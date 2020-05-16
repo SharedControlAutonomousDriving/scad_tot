@@ -29,7 +29,7 @@ def save_local_robustness_results_to_csv(results, outdir=default_outdir):
     summary_file = os.path.join(outdir, 'local_summary.csv')
     details_file = os.path.join(outdir, 'local_details.csv')
     if not os.path.exists(outdir):
-        os.makedirs(outdir)
+        os.makedirs(outdir, mode=0o755)
     with open(summary_file, 'w') as f:
         f.writelines(summary_lines)
         logger.info(f'wrote summary to {summary_file}')
@@ -95,7 +95,7 @@ def find_local_robustness_boundaries(model_path, samples, d_min=0.001, d_max=100
     # results tuple containing summary tuple & details list
     results = ((negd, posd), details)
     if save_results: save_local_robustness_results_to_csv(results, outdir=outdir)
-    if save_samples: TOTUtils.save_samples_to_csv(samples, os.path.join(outdir, 'samples.csv'))
+    if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
 def main():
