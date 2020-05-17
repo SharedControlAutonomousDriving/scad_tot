@@ -5,6 +5,7 @@ import numpy as np
 from multiprocessing.pool import ThreadPool
 from tensorflow.keras.models import load_model
 from utils import create_logger, count_decimal_places, ms_since_1970, TOTUtils
+from tot_net import TOTNet
 from maraboupy import Marabou
 from argparse import ArgumentParser
 
@@ -136,6 +137,33 @@ def find_sensitivity_boundaries(model_path, samples, d_min=default_dmin, d_max=d
     if save_results: save_sensitivity_results_to_csv(results, samples, outdir=outdir)
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
+
+def verify_sensitivity_boundaries(nnet_path, samples, distances):
+    # TODO: Handle Marabou Timeouts
+    start = ms_since_1970()
+    net = TOTNet(nnet_path)
+    n_inputs = len(samples[0][0])
+    counterexamples = {}
+    for x in range(n_inputs):
+        negd, posd = distances[x]
+        xid = f'x{x}'
+        for s,sample in enumerate(samples):
+            inputs, outputs = sample
+            expected_category = outputs.index(max(outputs))
+            net.reset_query()
+            net.set_lower_bounds(inputs[0:x] + [inputs[x]+negd] + inputs[x+1:])
+            net.set_upper_bounds(inputs[0:x] + [inputs[x]+posd] + inputs[x+1:])
+            net.set_expected_category(expected_category)
+            vals, _ = net.solve()
+            if len(vals) > 0:
+                counterexamples[xid] = (vals, ((negd,posd), sample))
+                break
+    duration = ms_since_1970() - start
+    if bool(counterexamples):
+        logger.error(f'counterexamples found for {len(counterexamples.keys())} inputs ({duration}ms)')
+    else:
+        logger.info(f'all distances valid ({duration}ms)')
+    return counterexamples
 
 if __name__ == '__main__':
     '''
