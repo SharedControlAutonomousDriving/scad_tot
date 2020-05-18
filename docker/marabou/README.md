@@ -4,13 +4,13 @@ The [marabou docker image](https://hub.docker.com/r/grese/marabou) is an ubuntu-
 
 ## Features
 
-* Based on Ubuntu 18.04 (bionic)
-* Python3 installed
-* Numpy, Tensorflow, Pandas, and other useful pip packages
+* Runs Ubuntu 18.04 (bionic)
+* Based on [https://hub.docker.com/r/jupyter/tensorflow-notebook](jupyter/tensorflow-notebook)
+* Python3, Numpy, Tensorflow, Pandas, Jupyter Notebooks, and other useful pip packages
 * Marabou & Marabou Python APIs installed
 * Standord's [NNet format tools](https://github.com/sisl/NNet) installed
 * ZShell is default shell
-* Alias to run marabou as a command
+* A few other helpers and convenience features.
 
 ## Usage
 
@@ -31,7 +31,6 @@ Marabou has been pre-installed in `~/.bin/marabou` along with all of the source 
 A ZSH command has been added for Marabou, so you can just run `marabou` from the command line. See examples below.
 
 **%** `marabou --help`
-
 **%** `marabou --input=NNET_FILE --property=PROPERTY_FILE`
 
 ### Using Marabou's Python APIs
