@@ -4,12 +4,12 @@ FROM grese/marabou:latest
 # Docker arguments
 ARG MARABOU_USER=marabou
 ARG MARABOU_HOME=/home/marabou
-# ARG SCAD_TOT_URL=https://github.com/grese/scad_tot.git
 ARG SCAD_TOT_URL=https://github.com/grese/scad_tot/archive/master.zip
 ARG SCAD_TOT_PATH=${MARABOU_HOME}/scad_tot
 ARG SCAD_TOT_IGNORE='docker docs'
 
 # Environment variables
+ENV NB_USER=${MARABOU_USER}
 ENV SCAD_TOT_PATH=${SCAD_TOT_PATH}
 
 # remove unnecessary directory
