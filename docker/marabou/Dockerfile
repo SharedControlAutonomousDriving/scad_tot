@@ -12,13 +12,18 @@ ARG OLD_USER=jovyan
 ARG NB_GROUP=users
 
 # Configure default user, cwd, and shell for docker
+ENV TERM="xterm"
 ENV NB_USER=${MARABOU_USER}
-ENV GEN_CERT=yes
+ENV HOME=${MARABOU_HOME}
+ENV MARABOU_HOME=${MARABOU_HOME}
+ENV GEN_CERT=no
 ENV MARABOU_PATH=${MARABOU_PATH}
 ENV NNET_PATH=${NNET_PATH}
 ENV PYTHONPATH="$PYTHONPATH:$MARABOU_PATH:$NNET_PATH"
 ENV JUPYTER_PATH="$JUPYTER_PATH:$MARABOU_PATH:$NNET_PATH"
-ENV TERM="xterm"
+ENV SERVER_TOKEN=""
+ENV SERVER_CERTFILE=""
+ENV SERVER_KEYFILE=""
 
 # run as root (will change to marabou)
 USER root
@@ -32,10 +37,13 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update -y \
 RUN mv /home/${OLD_USER} ${MARABOU_HOME}
 RUN usermod ${OLD_USER} -l ${MARABOU_USER} -d ${MARABOU_HOME} -s /bin/zsh -g ${NB_GROUP} -G sudo && echo "${MARABOU_USER} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 RUN rm -rf /home/${OLD_USER}
+
 # make marabou directory and copy folders
-RUN mkdir -p /home/marabou/.bin
-COPY ./git-prompt.sh /home/marabou/.bin/git-prompt.sh
-COPY ./zshrc /home/marabou/.zshrc
+RUN mkdir -p ${MARABOU_HOME}/.bin
+COPY ./shell/git-prompt.sh ${MARABOU_HOME}/.bin/git-prompt.sh
+COPY ./shell/zshrc ${MARABOU_HOME}/.zshrc
+COPY ./start_server.sh /usr/local/bin
+RUN chmod +x /usr/local/bin/start_server.sh
 
 # Upgrade pip and install packages
 RUN pip install --no-cache-dir --upgrade pip
@@ -45,7 +53,7 @@ RUN pip install --no-cache-dir onnx onnxruntime
 # Download, unzip, build, and setup marabou
 RUN cd /tmp && wget -q -O marabou.zip ${MARABOU_URL} && unzip -q marabou.zip \
     && mv Marabou-master ${MARABOU_PATH} && rm -rf marabou.zip
-RUN mkdir ${MARABOU_PATH}/build && cd ${MARABOU_PATH}/build && cmake .. -DBUILD_PYTHON=ON && cmake --build .
+RUN mkdir -p ${MARABOU_PATH}/build && cd ${MARABOU_PATH}/build && cmake .. -DBUILD_PYTHON=ON && cmake --build .
 
 # Download, unzip, and setup nnet
 RUN cd /tmp && wget -q -O nnet.zip ${NNET_URL} && unzip -q nnet.zip \
@@ -54,9 +62,6 @@ RUN cd /tmp && wget -q -O nnet.zip ${NNET_URL} && unzip -q nnet.zip \
 # fix permissions
 RUN chown -R ${MARABOU_USER}:${NB_GROUP} ${MARABOU_HOME}
 
+# set cwd, and set default startup command
 WORKDIR ${MARABOU_HOME}
-CMD /usr/local/bin/start-notebook.sh \ 
-    --NotebookApp.port=9999 \ 
-    --NotebookApp.notebook_dir=${MARABOU_HOME} \ 
-    --ContentsManager.root_dir=${MARABOU_HOME} \ 
-    --FileContentsManager.root_dir=${MARABOU_HOME}
+CMD /usr/local/bin/start_server.sh

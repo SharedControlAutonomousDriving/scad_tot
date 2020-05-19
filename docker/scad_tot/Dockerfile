@@ -9,6 +9,7 @@ ARG SCAD_TOT_PATH=${MARABOU_HOME}/scad_tot
 ARG SCAD_TOT_IGNORE='docker docs'
 
 # Environment variables
+ENV NB_USER=${MARABOU_USER}
 ENV SCAD_TOT_PATH=${SCAD_TOT_PATH}
 
 # remove unnecessary directory
