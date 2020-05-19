@@ -13,7 +13,7 @@ default_dmin = 0.00001
 default_dmax = 100.0
 logger = create_logger('robustness', logdir=default_outdir)
 
-def save_local_robustness_results_to_csv(results, outdir=default_outdir):
+def save_local_robustness_results_to_csv(results, samples, outdir=default_outdir):
     '''
     saves local robustness summary and detailed results in csv format.
 
@@ -22,10 +22,10 @@ def save_local_robustness_results_to_csv(results, outdir=default_outdir):
     @param outid (string): output file id
     '''
     summary_lines = ['dneg,dpos\n']
-    details_lines = ['s,dneg,dpos\n']
+    details_lines = ['s,dneg,dpos,pred\n']
     summary, details = results
     summary_lines.append(','.join([str(summary[0]), str(summary[1])])+'\n')
-    details_lines.extend([','.join([str(s), str(detail[0]), str(detail[1])])+'\n' for s,detail in enumerate(details)])
+    details_lines.extend([','.join([str(s), str(detail[0]), str(detail[1]), str(samples[s][1].index(max(samples[s][1])))])+'\n' for s,detail in enumerate(details)])
     summary_file = os.path.join(outdir, 'local_summary.csv')
     details_file = os.path.join(outdir, 'local_details.csv')
     if not os.path.exists(outdir):
@@ -94,7 +94,7 @@ def find_local_robustness_boundaries(model_path, samples, d_min=0.001, d_max=100
     posd = min([d for d in [r for r in zip(*details)][1] if d is not 0] or [0])
     # results tuple containing summary tuple & details list
     results = ((negd, posd), details)
-    if save_results: save_local_robustness_results_to_csv(results, outdir=outdir)
+    if save_results: save_local_robustness_results_to_csv(results, samples, outdir=outdir)
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 

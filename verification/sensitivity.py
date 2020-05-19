@@ -33,7 +33,7 @@ def evaluate_sample(nnet_path, inputs, outputs):
     result = 'UNSAT' if pred_cat == expected_cat else 'SAT'
     return (result, pred)
 
-def save_sensitivity_results_to_csv(results, outdir=default_outdir):
+def save_sensitivity_results_to_csv(results, samples, outdir=default_outdir):
     '''
     saves sensitivity summary and detailed results in csv format.
 
@@ -41,12 +41,12 @@ def save_sensitivity_results_to_csv(results, outdir=default_outdir):
     @param outdir (string): output directory
     '''
     summary_lines = ['x,dneg,dpos\n']
-    details_lines = ['x,s,dneg,dpos\n']
+    details_lines = ['x,s,dneg,dpos,pred\n']
     for x_id, result in results.items():
         x = int(x_id[1:])
         summary, details = result
         summary_lines.append(','.join([str(x), str(summary[0]), str(summary[1])])+'\n')
-        details_lines.extend([','.join([str(x), str(s), str(detail[0]), str(detail[1])])+'\n' for s,detail in enumerate(details)])
+        details_lines.extend([','.join([str(x), str(s), str(detail[0]), str(detail[1]), str(samples[s][1].index(max(samples[s][1])))])+'\n' for s,detail in enumerate(details)])
     summary_file = os.path.join(outdir, 'summary.csv')
     details_file = os.path.join(outdir, 'details.csv')
     if not os.path.exists(outdir):
@@ -133,7 +133,7 @@ def find_sensitivity_boundaries(model_path, samples, d_min=default_dmin, d_max=d
     results = {}
     for x in range(n_features):
         results[f'x{x}'] = find_feature_sensitivity_boundaries(model_path, x, samples, d_min=d_min, d_max=d_max, multithread=multithread, verbose=verbose)
-    if save_results: save_sensitivity_results_to_csv(results, outdir=outdir)
+    if save_results: save_sensitivity_results_to_csv(results, samples, outdir=outdir)
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
