@@ -18,9 +18,13 @@ The [marabou docker image](https://hub.docker.com/r/grese/marabou) is an ubuntu-
 
 **%** `docker pull grese/marabou`
 
-### Run the image
+### Run the Jupyter browser app:
 
-**%** `docker run -it grese/marabou /bin/zsh`
+**%** `docker run -p 9999:9999 grese/marabou`
+
+### Run on command line:
+
+**%** `docker run -p 9999:9999 -it grese/marabou /bin/zsh`
 
 ### Using Marabou
 
