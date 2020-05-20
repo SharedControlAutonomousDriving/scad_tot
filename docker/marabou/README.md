@@ -40,6 +40,7 @@ Marabou has been pre-installed in `~/.bin/marabou` along with all of the source 
 A ZSH command has been added for Marabou, so you can just run `marabou` from the command line. See examples below.
 
 **%** `marabou --help`
+
 **%** `marabou --input=NNET_FILE --property=PROPERTY_FILE`
 
 ### Using Marabou's Python APIs
