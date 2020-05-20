@@ -27,6 +27,8 @@ You'll need [docker](https://www.docker.com/products/docker-desktop) installed, 
 
 **%** `docker run -p 9999:9999 grese/marabou`
 
+Once it is running, visit https://localhost:9999 in your browser.
+
 ### Run on command line:
 
 **%** `docker run -p 9999:9999 -it grese/marabou /bin/zsh`
