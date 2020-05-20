@@ -6,6 +6,7 @@ import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
 from tensorflow.keras.models import load_model
 from utils import create_logger, count_decimal_places, ms_since_1970, TOTUtils
+from tot_net import TOTNet
 from argparse import ArgumentParser
 
 default_outdir = './logs/robustness'
@@ -65,10 +66,10 @@ def find_local_robustness_boundaries(model_path, samples, d_min=0.001, d_max=100
             # find first prediction where the category changed...
             for i,pred in enumerate(predictions):
                 if list(pred).index(max(pred)) != exp_cat:
-                    dist = distances[i]
+                    dist = distances[i-1] if i > 0 else distances[i] - prec
                     # adjust bounds for next highest precision
-                    lbound = dist - prec if dist - prec > 0 else d_min
-                    ubound = dist
+                    lbound = max(dist, d_min)
+                    ubound = distances[i]
                     if verbose > 1: logger.info(f's{s}@p{prec}: {dlabel(sign)}={dist}')
                     break
             # give up if dist is zero after first round.
@@ -98,12 +99,52 @@ def find_local_robustness_boundaries(model_path, samples, d_min=0.001, d_max=100
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
+def verify_local_robustness_boundaries(nnet_path, samples, distances, precision_adjustment=0, ignore_samples=[], timeout=10, verbose=0):
+    # TODO: Save output to csv
+    start = ms_since_1970()
+    net = TOTNet(nnet_path)
+    n_inputs = len(samples[0][0])
+    n_outputs = len(samples[0][1])
+    counterexamples = {}
+    negd, posd = distances
+    negd = negd + precision_adjustment
+    posd = posd - precision_adjustment
+    s_indexes = [s for s in range(len(samples)) if s not in ignore_samples]
+    for s in s_indexes:
+        sample = samples[s]
+        inputs, outputs = sample
+        expected_category = outputs.index(max(outputs))
+        other_categories = [y for y in range(n_outputs) if y != expected_category]
+        lbounds = [x+negd for x in inputs]
+        ubounds = [x+posd for x in inputs]
+        for oc in other_categories:
+            net.reset_query()
+            net.set_lower_bounds(lbounds)
+            net.set_upper_bounds(ubounds)
+            net.set_expected_category(oc)
+            vals, _ = net.solve(timeout=timeout)
+            counter_inputs, counter_outputs = vals
+            if len(counter_inputs) > 0 or len(counter_outputs) > 0:
+                # print(f's{s}:oc{oc}:nd={negd}:posd={posd}:CEX:\n', vals, '\n')
+                if verbose > 0: logger.info(f'counterexample found for s{s}')
+                counterexamples[s] = (vals, sample)
+                break
+        if bool(counterexamples):
+            break
+    duration = ms_since_1970() - start
+    if bool(counterexamples):
+        logger.error(f'counterexamples found for {len(counterexamples.keys())} inputs ({duration}ms)')
+    else:
+        logger.info(f'all distances valid ({duration}ms)')
+    return counterexamples
+
 if __name__ == '__main__':
     '''
     Usage: python3 verification/robustness.py -m MODELPATH -d DATAPATH [-df FRAC -dmin DMIN -dmax DMAX -mt -sr -ss -sl -o OUTDIR -v V]
     '''
     parser = ArgumentParser()
     parser.add_argument('-m', '--modelpath', required=True)
+    parser.add_argument('-n', '--nnetpath')
     parser.add_argument('-d', '--datapath', required=True)
     parser.add_argument('-df', '--datafrac', type=float, default=1)
     parser.add_argument('-dmin', '--dmin', type=float, default=default_dmin)
@@ -113,6 +154,7 @@ if __name__ == '__main__':
     parser.add_argument('-ss', '--savesamples', action='store_true')
     parser.add_argument('-sl', '--savelogs', action='store_true')
     parser.add_argument('-o', '--outdir', default=default_outdir)
+    parser.add_argument('-t', '--timeout', default=10)
     parser.add_argument('-v', '--verbose', type=int, default=0)
     args = parser.parse_args()
     # configure logger
@@ -120,4 +162,14 @@ if __name__ == '__main__':
     logger = create_logger('robustness', to_file=args.savelogs, logdir=args.outdir)
     # load % of samples, and filter out incorrect predictions
     samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.modelpath)
-    find_local_robustness_boundaries(args.modelpath, samples, d_min=args.dmin, d_max=args.dmax, multithread=args.multithread, verbose=args.verbose, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir)
+    boundary_results = find_local_robustness_boundaries(args.modelpath, samples, d_min=args.dmin, d_max=args.dmax, multithread=args.multithread, verbose=args.verbose, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir)
+    distances, _ = boundary_results
+    if not args.nnetpath:
+        logger.warning('no nnet supplied. skipping verification')
+        exit(0)
+    
+    counterexamples = verify_local_robustness_boundaries(args.nnetpath, samples, distances, timeout=args.timeout, verbose=args.verbose)
+    print('Counterexamples:')
+    print(counterexamples)
+    print('Distances:')
+    print(distances)

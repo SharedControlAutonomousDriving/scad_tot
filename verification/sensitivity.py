@@ -85,10 +85,10 @@ def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=default_dm
             # find first prediction where the category changed...
             for i,pred in enumerate(predictions):
                 if list(pred).index(max(pred)) != exp_cat:
-                    dist = distances[i]
+                    dist = distances[i-1] if i > 0 else distances[i] - prec
                     # adjust bounds for next highest precision
-                    lbound = dist - prec if dist - prec > 0 else d_min
-                    ubound = dist
+                    lbound = max(dist, d_min)
+                    ubound = distances[i]
                     if verbose > 1: logger.info(f'x{x}_s{s}@p{prec}: {dlabel(sign)}={dist}')
                     break
             # give up if dist is zero after first round.
@@ -138,25 +138,39 @@ def find_sensitivity_boundaries(model_path, samples, d_min=default_dmin, d_max=d
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
-def verify_sensitivity_boundaries(nnet_path, samples, distances):
-    # TODO: Handle Marabou Timeouts
+def verify_sensitivity_boundaries(nnet_path, samples, distances, precision_adjustment=0, ignored_inputs=[], timeout=10, verbose=0):
+    # TODO: Save output to csv
     start = ms_since_1970()
     net = TOTNet(nnet_path)
     n_inputs = len(samples[0][0])
+    n_outputs = len(samples[0][1])
     counterexamples = {}
-    for x in range(n_inputs):
-        negd, posd = distances[x]
+    x_indexes = [x for x in range(n_inputs) if x not in ignored_inputs]
+    for x in x_indexes:
         xid = f'x{x}'
+        negd, posd = distances[x]
+        # adjust distances back to last place where category was correct.
+        negd = negd + precision_adjustment
+        posd = posd - precision_adjustment
         for s,sample in enumerate(samples):
             inputs, outputs = sample
             expected_category = outputs.index(max(outputs))
-            net.reset_query()
-            net.set_lower_bounds(inputs[0:x] + [inputs[x]+negd] + inputs[x+1:])
-            net.set_upper_bounds(inputs[0:x] + [inputs[x]+posd] + inputs[x+1:])
-            net.set_expected_category(expected_category)
-            vals, _ = net.solve()
-            if len(vals) > 0:
-                counterexamples[xid] = (vals, ((negd,posd), sample))
+            other_categories = [y for y in range(n_outputs) if y != expected_category]
+            lbounds = inputs[0:x] + [inputs[x]+negd] + inputs[x+1:]
+            ubounds = inputs[0:x] + [inputs[x]+posd] + inputs[x+1:]
+            for oc in other_categories:
+                net.reset_query()
+                net.set_lower_bounds(lbounds)
+                net.set_upper_bounds(ubounds)
+                net.set_expected_category(oc)
+                vals, _ = net.solve(timeout=timeout)
+                counter_inputs, counter_outputs = vals
+                if len(counter_inputs) > 0 or len(counter_outputs) > 0:
+                    # print(f'x{x}:s{s}:oc{oc}:nd={negd}:posd={posd}:CEX:\n', vals, '\n')
+                    if verbose > 0: logger.info(f'counterexample found for s{s} x{x}')
+                    counterexamples[xid] = (vals, ((negd,posd), sample))
+                    break
+            if counterexamples.get(xid) != None:
                 break
     duration = ms_since_1970() - start
     if bool(counterexamples):

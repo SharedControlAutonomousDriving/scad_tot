@@ -55,7 +55,7 @@ class TOTNet:
     def set_expected_category(self, y_index):
         n_outputs = self.ipq.getNumOutputVariables()
         assert(y_index < n_outputs)
-        other_cats_y = [y for y in range(n_outputs) if y is not y_index]
+        other_cats_y = [y for y in range(n_outputs) if y != y_index]
         for other_y in other_cats_y:
             eq = MarabouCore.Equation(MarabouCore.Equation.LE)
             eq.addAddend(1, self.ipq.outputVariableByIndex(other_y))
