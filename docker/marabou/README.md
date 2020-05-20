@@ -14,6 +14,11 @@ The [marabou docker image](https://hub.docker.com/r/grese/marabou) is an ubuntu-
 
 ## Usage
 
+### Prerequisites
+
+You'll need [docker](https://www.docker.com/products/docker-desktop) installed, so just install that first if you don't have it.
+
+
 ### Get the image
 
 **%** `docker pull grese/marabou`
