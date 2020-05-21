@@ -27,7 +27,7 @@ You'll need [docker](https://www.docker.com/products/docker-desktop) installed, 
 
 **%** `docker run -p 9999:9999 grese/marabou`
 
-Once it is running, visit https://localhost:9999?token=<TOKEN> in your browser. (token will be printed in the console when container starts)
+Once it is running, visit https://localhost:9999?token=TOKEN in your browser. (token will be printed in the console when container starts)
 
 #### With a persistent volume from your local machine
 
