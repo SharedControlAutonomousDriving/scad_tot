@@ -27,16 +27,15 @@ You'll need [docker](https://www.docker.com/products/docker-desktop) installed, 
 
 **%** `docker run -p 9999:9999 grese/marabou`
 
-Once it is running, visit https://localhost:9999 in your browser.
+Once it is running, visit https://localhost:9999?token=<TOKEN> in your browser. (token will be printed in the console when container starts)
 
-If you'd like to mount a persistent folder, try this command:
+#### With a persistent volume from your local machine
 
 **%** `docker run -p 9999:9999 -v "$PWD":/home/marabou/work grese/marabou`
 
 ### Run on command line:
 
 **%** `docker run -p 9999:9999 -it grese/marabou /bin/zsh`
-
 
 ### Run as daemon
 
