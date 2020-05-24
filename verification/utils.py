@@ -2,7 +2,6 @@ import os, logging, random, time
 import pandas as pd
 from decimal import Decimal
 from tot_net import TOTNet
-from tensorflow.keras.models import load_model
 
 def count_decimal_places(f):
     return abs(Decimal(str(f)).as_tuple().exponent)
@@ -111,25 +110,23 @@ class TOTUtils:
         return [(list(inputs_df.iloc[i]), list(outputs_df.iloc[i])) for i in range(df.shape[0])]
 
     @staticmethod
-    def filter_samples(samples, model_path, incorrect_predictions=False):
+    def filter_samples(samples, nnet_path, incorrect=False):
         '''
         evaluates samples and filters based on correct or incorrect prediction
 
         @param samples (list): list of tuples containing inputs and outputs
-        @param model_path (string): path to h5 or pb model
-        @incorrect_predictions (bool): if true, returns the incorrect predictions (default False)
+        @param nnet_path (string): path to nnet model
+        @incorrect (bool): if true, returns the incorrect predictions (default False)
         '''
         filtered = []
-        model = load_model(model_path)
-        input_samples = [s[0] for s in samples]
-        output_samples = [s[1] for s in samples]
-        predictions = model.predict(input_samples)
-        for i,p in enumerate(predictions):
-            inputs, outputs = input_samples[i], output_samples[i]
-            exp_cat = outputs.index(max(outputs))
-            correct = list(p).index(max(p)) == exp_cat
-            if (not incorrect_predictions and correct) or (incorrect_predictions and not correct):
-                filtered.append((inputs, outputs))
+        net = TOTNet(nnet_path)
+        for sample in samples:
+            inputs, outputs = sample
+            exp_y = outputs.index(max(outputs))
+            pred = net.evaluate(inputs)
+            is_correct = list(pred).index(max(pred)) == exp_y
+            if (not incorrect and is_correct) or (incorrect and not is_correct):
+                filtered.append(sample)
         return filtered
     
     @staticmethod

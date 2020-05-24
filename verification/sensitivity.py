@@ -2,47 +2,25 @@
 
 import os
 import numpy as np
-from multiprocessing.pool import ThreadPool
-from tensorflow.keras.models import load_model
 from utils import create_logger, count_decimal_places, ms_since_1970, TOTUtils
 from tot_net import TOTNet
-from maraboupy import Marabou
 from argparse import ArgumentParser
 
 default_outdir = './logs/sensitivity'
-default_dmin = 0.00001
-default_dmax = 100.0
+default_emin = 0.0001
+default_emax = 100.0
+default_timeout = 0
 logger = create_logger('sensitivity', logdir=default_outdir)
 
-def evaluate_sample(nnet_path, inputs, outputs):
-    '''
-    evaluates a sample using marabou
-
-    @param nnet_path (string): path to the nnet file
-    @param inputs (list): x values for sample
-    @param outputs (list): y values for sample
-    @return (tuple): (UNSAT|SAT, [y0,...,yN])
-    '''
-    expected_cat = outputs.index(max(outputs))
-    other_cats = [i for i in range(len(outputs)) if i != expected_cat]
-    net = Marabou.read_nnet(nnet_path)
-    for x,v in enumerate(inputs):
-        net.setLowerBound(net.inputVars[0][x], v)
-        net.setUpperBound(net.inputVars[0][x], v)
-    pred = net.evaluate([inputs])
-    pred_cat = list(pred[0]).index(max(pred[0]))
-    result = 'UNSAT' if pred_cat == expected_cat else 'SAT'
-    return (result, pred)
-
-def save_sensitivity_results_to_csv(results, samples, outdir=default_outdir):
+def save_sensitivity_results_to_csv(results, outdir=default_outdir):
     '''
     saves sensitivity summary and detailed results in csv format.
 
     @param results (dict): sensitivity results dictionary ({x0: (summary_tuple, details_list), ...})
     @param outdir (string): output directory
     '''
-    summary_lines = ['x,dneg,dpos\n']
-    details_lines = ['x,s,dneg,dpos,pred\n']
+    summary_lines = ['x,leps,ueps\n']
+    details_lines = ['x,s,leps,ueps\n']
     for x_id, result in results.items():
         x = int(x_id[1:])
         summary, details = result
@@ -59,137 +37,114 @@ def save_sensitivity_results_to_csv(results, samples, outdir=default_outdir):
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_feature_sensitivity_boundaries(model_path, x, samples, d_min=default_dmin, d_max=default_dmax, multithread=False, verbose=0):
-    '''
-    finds +/- sensitivity boundaries of a feature on a set of input samples (note predictions must be correct)
-    
-    @param model_path (string): h5 or pb model path
-    @param x (int): index of feature (x0 to xN)
-    @param samples (list): list of tuples containing input and output samples
-    @d_min (float): min distance to consider (also used as precision) (default false)
-    @d_max (float): max distance to consider (default false)
-    @multithread (bool): perform + and - in parallel (default false)
-    @verbose (int): extra logging (0, 1, 2) (default 0)
-    @return (tuple): ((negdist,posdist), [(s0_ndist,s0_pdist)...(sN_ndist,sN_pdist)])
-    '''
-    def find_distance(s, sign):
-        inputs, outputs = samples[s]
-        exp_cat = outputs.index(max(outputs))
-        lbound, ubound = d_min, d_max
-        dist = 0
-        for dp in range(dplaces+1):
-            prec = round(1/(10**dp), dp)
-            distances = np.arange(lbound, ubound, prec)
-            dsamples = [inputs[0:x]+[inputs[x]+(d*sign)]+inputs[x+1:] for d in distances]
-            predictions = model.predict(dsamples) if len(dsamples) > 0 else []
-            # find first prediction where the category changed...
-            for i,pred in enumerate(predictions):
-                if list(pred).index(max(pred)) != exp_cat:
-                    dist = distances[i-1] if i > 0 else distances[i] - prec
-                    # adjust bounds for next highest precision
-                    lbound = max(dist, d_min)
-                    ubound = distances[i]
-                    if verbose > 1: logger.info(f'x{x}_s{s}@p{prec}: {dlabel(sign)}={dist}')
-                    break
-            # give up if dist is zero after first round.
-            if dist == 0:
-                if verbose > 0: logger.warning(f'no {dlabel(sign)} found for x{x}_s{s}@p{prec}')
-                break
-        if verbose > 0: logger.info(f'x{x}_s{s} {dlabel(sign)}={dist}')
-        return dist
+def find_counterexample(net, sample, x, epsilon, asym_side='', timeout=default_timeout, verbose=0):
+    inputs, outputs = sample
+    # create upper and lower bounds (in asym mode, zero out the other side's epsilon)
+    l_epsilon = 0 if asym_side and asym_side == 'u' else epsilon
+    u_epsilon = 0 if asym_side and asym_side == 'l' else epsilon
+    lbs = inputs[0:x] + [inputs[x]-l_epsilon] + inputs[x+1:]
+    ubs = inputs[0:x] + [inputs[x]+u_epsilon] + inputs[x+1:]
+    # find y index of prediction
+    y_idx = outputs.index(max(outputs))
+    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout)
 
-    model = load_model(model_path)
+def find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
+    # count num places in decimal and mantissa
+    dplaces = count_decimal_places(e_prec)
+    mplaces = len(str(int(e_max)))
+    # iterate through decimal places in reverse (e.g. 0.001, 0.01, 0.1, 1.0, 10.0)
+    for dp in range(dplaces, -mplaces, -1):
+        lb = round(1/(10**(dp+1)), (dp+1))
+        ub = round(1/(10**dp), dp)
+        epsilons = [round(e, dp+1) for e in np.arange(lb, ub, lb)]
+        if verbose > 1: logger.info(f'searching {len(epsilons)} coarse {asym_side+"_" if asym_side else ""}epsilons b/t {epsilons[0]} and {epsilons[-1]}')
+        for i,e in enumerate(epsilons):
+            counterexample = find_counterexample(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
+            if counterexample:
+                # return epsilon lower & upper bounds if counterexample was found
+                e_lb = epsilons[i-1] if i > 0 else round(e-lb, dp+1)
+                e_ub = e
+                return (e_lb, e_ub)
+    return (e_min, e_max)
+
+def find_epsilon(net, sample, x, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
+    '''
+    finds precise epsilon value within specified bounds
+    '''
+    dplaces = count_decimal_places(e_prec)
+    epsilons = [round(e, dplaces) for e in np.arange(e_min, e_max, e_prec)]
+    if verbose > 1: logger.info(f'searching {len(epsilons)} {asym_side+"_" if asym_side else ""}epsilons b/t {epsilons[0]} and {epsilons[-1]}')
+    # binary search range of epsilons
+    e, l, m, h = 0, 0, 0, len(epsilons)-1
+    cex_found, best_epsilon = False, None
+    while l <= h:
+        m = (h + l) // 2
+        e = epsilons[m]
+        counterexample = find_counterexample(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
+        if counterexample:
+            h = m - 1
+            cex_found = True
+        else:
+            l = m + 1
+            best_epsilon = e
+    if cex_found:
+        return best_epsilon if best_epsilon is not None else round(e-e_prec, dplaces)
+    return 0
+
+def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max=default_emax, e_prec=None, asym=False, save_results=False, save_samples=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
+    if not e_prec:
+        dp_prec = count_decimal_places(e_min)+1
+        e_prec = round(1/(10**dp_prec), dp_prec)
+    assert(e_prec <= e_min)
+    net = TOTNet(nnet_path)
     start = ms_since_1970()
-    dplaces = count_decimal_places(d_min)
-    dlabel = lambda sign: f'{"+" if sign > 0 else "-"}dist' # for logging
-    results = []
-    if multithread:
-        pool = ThreadPool(processes=2)
-        for i in range(len(samples)):
-            nthread, pthread = pool.apply_async(find_distance,(i,-1)), pool.apply_async(find_distance,(i,1))
-            results.append((-1*nthread.get(), pthread.get()))
-    else:
-        results = [(-1*find_distance(i,-1), find_distance(i,+1)) for i in range(len(samples))]
-    negd = max([d for d in [r for r in zip(*results)][0] if d is not 0] or [0])
-    posd = min([d for d in [r for r in zip(*results)][1] if d is not 0] or [0])
-    if verbose > 0: logger.info(f'x{x}: ({negd}, {posd}) ({ms_since_1970() - start}ms)')
-    return ((negd, posd), results)
-
-def find_sensitivity_boundaries(model_path, samples, d_min=default_dmin, d_max=default_dmax, multithread=False, verbose=0, save_results=False, save_samples=False, outdir=default_outdir):
-    '''
-    finds sensitivity for all features on provided samples
-
-    @param model_path (string): h5 or pb model path
-    @param samples (list): list of samples
-    @param d_min (float): min distance to consider
-    @param d_max (float): max distance to consider
-    @param multithread (bool): perform + and - in parallel (default false)
-    @param verbose (int): extra logging (0, 1, 2) (default 0)
-    @param save_results (bool): save results to csv files
-    @param save_samples (bool): save samples to csv file
-    @param outdir (string): output directory for csv files
-    @return (dict): {x0:((negdist,posdist), [(x0s0_ndist,x0s1_pdist)...(xNsM_ndist,xNsM_pdist)]),...}
-    '''
-    n_features = len(samples[0][0])
+    x_indexes = x_indexes if x_indexes else [x for x in range(net.get_num_inputs())]
     results = {}
-    for x in range(n_features):
-        results[f'x{x}'] = find_feature_sensitivity_boundaries(model_path, x, samples, d_min=d_min, d_max=d_max, multithread=multithread, verbose=verbose)
-    if save_results: save_sensitivity_results_to_csv(results, samples, outdir=outdir)
+    for x in x_indexes:
+        epsilons = []
+        for s,sample in enumerate(samples):
+            if asym:
+                # find coarse bounds for lower and upper epsilon
+                le_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
+                if verbose > 1: logger.info(f'x{x}_s{s} lower epsilon coarse bounds: {le_bounds}')
+                ue_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
+                if verbose > 1: logger.info(f'x{x}_s{s} upper epsilon coarse bounds: {ue_bounds}')
+                # find lower and upper epsilon within the coarse bounds
+                le = find_epsilon(net, sample, x, le_bounds[0], le_bounds[1], e_prec, asym_side='l', timeout=timeout, verbose=verbose)
+                if verbose > 0: logger.info(f'x{x}_s{s} lower epsilon: {le}')
+                ue = find_epsilon(net, sample, x, ue_bounds[0], ue_bounds[1], e_prec, asym_side='u', timeout=timeout, verbose=verbose)
+                if verbose > 0: logger.info(f'x{x}_s{s} upper epsilon: {ue}')
+                epsilons.append((le, ue))
+            else:
+                e_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, timeout=timeout, verbose=verbose)
+                if verbose > 1: logger.info(f'x{x}_s{s} interm epsilon bounds: {e_bounds}')
+                e = find_epsilon(net, sample, x, e_bounds[0], e_bounds[1], e_prec, timeout=timeout, verbose=verbose)
+                if verbose > 0: logger.info(f'x{x}_s{s} epsilon: {e}')
+                epsilons.append((e, e))
+        x_summary = (-min([le for le,_ in epsilons if le != 0]), min([ue for _,ue in epsilons if ue != 0])) if epsilons else (0, 0)
+        results[f'x{x}'] = (x_summary, epsilons)
+    
+    summary = {x:r[0] for x,r in results.items()}
+    logger.info(('asymm ' if asym else '') + f'sensitivity: {summary}')
+    if save_results: save_sensitivity_results_to_csv(results, outdir=outdir)
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
-def verify_sensitivity_boundaries(nnet_path, samples, distances, precision_adjustment=0, ignored_inputs=[], timeout=10, verbose=0):
-    # TODO: Save output to csv
-    start = ms_since_1970()
-    net = TOTNet(nnet_path)
-    n_inputs = len(samples[0][0])
-    n_outputs = len(samples[0][1])
-    counterexamples = {}
-    x_indexes = [x for x in range(n_inputs) if x not in ignored_inputs]
-    for x in x_indexes:
-        xid = f'x{x}'
-        negd, posd = distances[x]
-        # adjust distances back to last place where category was correct.
-        negd = negd + precision_adjustment
-        posd = posd - precision_adjustment
-        for s,sample in enumerate(samples):
-            inputs, outputs = sample
-            expected_category = outputs.index(max(outputs))
-            other_categories = [y for y in range(n_outputs) if y != expected_category]
-            lbounds = inputs[0:x] + [inputs[x]+negd] + inputs[x+1:]
-            ubounds = inputs[0:x] + [inputs[x]+posd] + inputs[x+1:]
-            for oc in other_categories:
-                net.reset_query()
-                net.set_lower_bounds(lbounds)
-                net.set_upper_bounds(ubounds)
-                net.set_expected_category(oc)
-                vals, _ = net.solve(timeout=timeout)
-                counter_inputs, counter_outputs = vals
-                if len(counter_inputs) > 0 or len(counter_outputs) > 0:
-                    # print(f'x{x}:s{s}:oc{oc}:nd={negd}:posd={posd}:CEX:\n', vals, '\n')
-                    if verbose > 0: logger.info(f'counterexample found for s{s} x{x}')
-                    counterexamples[xid] = (vals, ((negd,posd), sample))
-                    break
-            if counterexamples.get(xid) != None:
-                break
-    duration = ms_since_1970() - start
-    if bool(counterexamples):
-        logger.error(f'counterexamples found for {len(counterexamples.keys())} inputs ({duration}ms)')
-    else:
-        logger.info(f'all distances valid ({duration}ms)')
-    return counterexamples
-
 if __name__ == '__main__':
     '''
-    Usage: python3 verification/sensitivity.py -m MODELPATH -d DATAPATH [-df FRAC -dmin DMIN -dmax DMAX -mt -sr -ss -sl -o OUTDIR -v V]
+    Usage: python3 verification/sensitivity.py -n NNETPATH -d DATAPATH [-df FRAC -x 0 1 2 -emin EMIN -emax EMAX -eprec EPREC -a -t TIMEOUT -sr -ss -sl -o OUTDIR -v V]
     '''
     parser = ArgumentParser()
-    parser.add_argument('-m', '--modelpath', required=True)
+    parser.add_argument('-n', '--nnetpath', required=True)
     parser.add_argument('-d', '--datapath', required=True)
     parser.add_argument('-df', '--datafrac', type=float, default=1)
-    parser.add_argument('-dmin', '--dmin', type=float, default=default_dmin)
-    parser.add_argument('-dmax', '--dmax', type=float, default=default_dmax)
-    parser.add_argument('-mt', '--multithread', action='store_true')
+    parser.add_argument('-x', '--xindexes', type=int, nargs='+')
+    parser.add_argument('-emin', '--emin', type=float, default=default_emin)
+    parser.add_argument('-emax', '--emax', type=float, default=default_emax)
+    parser.add_argument('-eprec', '--eprec', type=float, default=None)
+    # parser.add_argument('-mt', '--multithread', action='store_true')
+    parser.add_argument('-a', '--asym', action='store_true')
+    parser.add_argument('-t', '--timeout', type=int, default=default_timeout)
     parser.add_argument('-sr', '--saveresults', action='store_true')
     parser.add_argument('-ss', '--savesamples', action='store_true')
     parser.add_argument('-sl', '--savelogs', action='store_true')
@@ -200,5 +155,8 @@ if __name__ == '__main__':
     for handler in logger.handlers[:]: logger.removeHandler(handler)    
     logger = create_logger('sensitivity', to_file=args.savelogs, logdir=args.outdir)
     # load % of samples, and filter out incorrect predictions
-    samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.modelpath)
-    find_sensitivity_boundaries(args.modelpath, samples, d_min=args.dmin, d_max=args.dmax, multithread=args.multithread, verbose=args.verbose, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir)
+    samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.nnetpath)
+    x_count = len(samples[0][0]) if not args.xindexes else len(args.xindexes)
+    logger.info(f'starting sensitivity test for {x_count} features on {len(samples)} samples')
+    results = test_sensitivity(args.nnetpath, samples, x_indexes=args.xindexes, e_min=args.emin, e_max=args.emax, e_prec=args.eprec, asym=args.asym, timeout=args.timeout, save_results=args.saveresults, save_samples=args.savesamples, outdir=default_outdir, verbose=args.verbose)
+    logger.info(f'sensitivity results:', results[0])
