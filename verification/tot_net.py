@@ -1,91 +1,115 @@
-from maraboupy import MarabouCore
-from maraboupy.Marabou import createOptions
+import os, copy
+from maraboupy import Marabou, MarabouUtils
 import numpy as np
+
+default_outdir = './logs'
+default_timeout = 0
 
 class TOTNet:
     '''
     Class representing SCAD TOT Marabou network
     '''
-    def __init__(self, network_path, property_path='', lbs=None, ubs=None):
-        self.network_path = network_path
-        self.load_query(property_path)
+    def __init__(self, network_path, lbs=None, ubs=None, outdir=default_outdir):
+        self.network = Marabou.read_nnet(network_path)
+        self.__original_network = copy.deepcopy(self.network)
         if not(lbs is None and ubs is None):
             assert(len(lbs) == len(ubs))
-            assert(len(lbs) == self.ipq.getNumInputVariables())
-            for i in range(len(lbs)):
-                self.set_input_lower_bound(i, lbs[i])
-                self.set_input_upper_bound(i, ubs[i])
+            assert(len(lbs) == self.get_num_inputs())
+            self.set_lower_bounds(lbs)
+            self.set_upper_bounds(ubs)
+        self.outdir = outdir
+        if not os.path.exists(self.outdir):
+            os.makedirs(outdir, mode=0o755)
 
-    def load_query(self, property_path=''):
-        self.ipq = MarabouCore.InputQuery()
-        MarabouCore.createInputQuery(self.ipq, self.network_path, property_path)
+    def get_num_inputs(self):
+        return len(self.network.inputVars[0])
+    
+    def get_num_outputs(self):
+        return len(self.network.outputVars[0])
     
     def set_lower_bounds(self, scaled_values):
-        assert(len(scaled_values) == self.ipq.getNumInputVariables())
+        assert(len(scaled_values) == self.get_num_inputs())
         for x,v in enumerate(scaled_values):
             self.set_input_lower_bound(x, v)
 
     def set_upper_bounds(self, scaled_values):
-        assert(len(scaled_values) == self.ipq.getNumInputVariables())
+        assert(len(scaled_values) == self.get_num_inputs())
         for x,v in enumerate(scaled_values):
             self.set_input_upper_bound(x, v)
+    
+    def get_input_var(self, x):
+        assert(x < self.get_num_inputs())
+        return self.network.inputVars[0][x]
+    
+    def get_output_var(self, x):
+        assert(x < self.get_num_inputs())
+        return self.network.outputVars[0][x]
 
     def set_input_lower_bound(self, x_index, scaled_value):
-        assert(x_index < self.ipq.getNumInputVariables())
-        variable = self.ipq.inputVariableByIndex(x_index)
-        self.ipq.setLowerBound(variable, scaled_value)
+        variable = self.get_input_var(x_index)
+        self.network.setLowerBound(variable, scaled_value)
     
     def set_input_upper_bound(self, x_index, scaled_value):
-        assert(x_index < self.ipq.getNumInputVariables())
-        variable = self.ipq.inputVariableByIndex(x_index)
-        self.ipq.setUpperBound(variable, scaled_value)
-    
-    def adjust_input_upper_bound(self, x_index, adjustment):
-        assert(x_index < self.ipq.getNumInputVariables())
-        variable = self.ipq.inputVariableByIndex(x_index)
-        value = self.ipq.getUpperBound(variable)
-        self.ipq.setUpperBound(variable, value+adjustment)
-    
-    def adjust_input_lower_bound(self, x_index, adjustment):
-        assert(x_index < self.ipq.getNumInputVariables())
-        variable = self.ipq.inputVariableByIndex(x_index)
-        value = self.ipq.getLowerBound(variable)
-        self.ipq.setLowerBound(variable, value+adjustment)
+        variable = self.get_input_var(x_index)
+        self.network.setUpperBound(variable, scaled_value)
     
     def set_expected_category(self, y_index):
-        n_outputs = self.ipq.getNumOutputVariables()
+        n_outputs = self.get_num_outputs()
         assert(y_index < n_outputs)
-        other_cats_y = [y for y in range(n_outputs) if y is not y_index]
-        for other_y in other_cats_y:
-            eq = MarabouCore.Equation(MarabouCore.Equation.LE)
-            eq.addAddend(1, self.ipq.outputVariableByIndex(other_y))
-            eq.addAddend(-1, self.ipq.outputVariableByIndex(y_index))
+        other_ys = [y for y in range(n_outputs) if y != y_index]
+        for other_y in other_ys:
+            eq = MarabouUtils.Equation(EquationType=Marabou.Equation.LE)
+            eq.addAddend(1, self.get_output_var(other_y))
+            eq.addAddend(-1, self.get_output_var(y_index))
             eq.setScalar(0)
-            self.ipq.addEquation(eq)
+            self.network.addEquation(eq)
+    
+    def get_input_lower_bound(self, x):
+        return self.network.lowerBounds[self.get_input_var(x)]
+    
+    def get_input_upper_bound(self, x):
+        return self.network.upperBounds[self.get_input_var(x)]
+
+    def get_lower_bounds(self):
+        n = self.get_num_inputs()
+        return [self.get_input_lower_bound(x) for x in range(n)]
     
     def get_lower_bounds(self):
-        n = self.ipq.getNumInputVariables()
-        return [self.ipq.getLowerBound(self.ipq.inputVariableByIndex(x)) for x in range(n)]
-    
-    def get_upper_bounds(self):
-        n = self.ipq.getNumInputVariables()
-        return [self.ipq.getUpperBound(self.ipq.inputVariableByIndex(x)) for x in range(n)]
+        n = self.get_num_inputs()
+        return [self.get_input_upper_bound(x) for x in range(n)]
 
     def get_bounds(self):
         return self.get_lower_bounds(), self.get_upper_bounds()
 
-    def solve(self, output_path='', timeout=0):
-        options = createOptions(timeoutInSeconds=timeout)
-        vals, stats = MarabouCore.solve(self.ipq, options, output_path)
+    def solve(self, timeout=default_timeout):
+        options = Marabou.createOptions(timeoutInSeconds=timeout, verbosity=0)
+        # vals, stats = self.network.solve(filename=f'{self.outdir}/marabou.log', verbose=False, options=options)
+        vals, stats = self.network.solve(verbose=False, options=options)
         assignment = ([], [])
         if len(vals) > 0:
-            for i in range(self.ipq.getNumInputVariables()):
-                assignment[0].append(vals[self.ipq.inputVariableByIndex(i)])
-                # assignment.append(f'input {i} = {vals[self.ipq.inputVariableByIndex(i)]}')
-            for i in range(self.ipq.getNumOutputVariables()):
-                assignment[1].append(vals[self.ipq.outputVariableByIndex(i)])
-                # assignment.append(f'output {i} = {vals[self.ipq.outputVariableByIndex(i)]}')
-        return [assignment, stats]
+            for i in range(self.get_num_inputs()):
+                assignment[0].append(vals[self.get_input_var(i)])
+            for i in range(self.get_num_outputs()):
+                assignment[1].append(vals[self.get_output_var(i)])
+        return assignment, stats
+    
+    def find_counterexample(self, input_lbs, input_ubs, expected_y, timeout=default_timeout):
+        assert(len(input_lbs) == self.get_num_inputs())
+        assert(expected_y < self.get_num_outputs())
+        other_ys = [y for y in range(self.get_num_outputs()) if y != expected_y]
+        for oy in other_ys:
+            self.reset()
+            self.set_lower_bounds(input_lbs)
+            self.set_upper_bounds(input_ubs)
+            self.set_expected_category(oy)
+            vals, stats = self.solve(timeout=timeout)
+            if len(vals[0]) > 0 or len(vals[1]) > 0:
+                return (vals, stats)
+        return None
 
-    def reset_query(self):
-        self.load_query()
+    def evaluate(self, input_vals, verbosity=0):
+        options = Marabou.createOptions(verbosity=0)
+        return self.network.evaluate([input_vals], options=options)[0]
+
+    def reset(self):
+        self.network = copy.deepcopy(self.__original_network)
