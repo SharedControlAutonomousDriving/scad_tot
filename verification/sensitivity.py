@@ -121,7 +121,7 @@ def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max
                 epsilons.append((le, ue))
             else:
                 e_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f'x{x}_s{s} interm epsilon bounds: {e_bounds}')
+                if verbose > 1: logger.info(f'x{x}_s{s} coarse epsilon bounds: {e_bounds}')
                 e = find_epsilon(net, sample, x, e_bounds[0], e_bounds[1], e_prec, timeout=timeout, verbose=verbose)
                 if verbose > 0: logger.info(f'x{x}_s{s} epsilon: {e}')
                 epsilons.append((e, e))
