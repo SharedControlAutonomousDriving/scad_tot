@@ -37,6 +37,9 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update -y \
 RUN mv /home/${OLD_USER} ${MARABOU_HOME}
 RUN usermod ${OLD_USER} -l ${MARABOU_USER} -d ${MARABOU_HOME} -s /bin/zsh -g ${NB_GROUP} -G sudo && echo "${MARABOU_USER} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 RUN rm -rf /home/${OLD_USER}
+# update .bashrc
+RUN echo "export PYTHONPATH=$PYTHONPATH:$MARABOU_PATH" >> ${MARABOU_HOME}/.bashrc
+RUN echo "export JUPYTER_PATH=$JUPYTER_PATH:$MARABOU_PATH" >> ${MARABOU_HOME}/.bashrc
 
 # make marabou directory and copy folders
 RUN mkdir -p ${MARABOU_HOME}/.bin
