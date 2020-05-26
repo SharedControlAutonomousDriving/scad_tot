@@ -14,9 +14,6 @@ ARG SCAD_TOT_DATA_URL=https://drive.google.com/uc?authuser=0&export=download&id=
 ENV NB_USER=${MARABOU_USER}
 ENV SCAD_TOT_PATH=${SCAD_TOT_PATH}
 
-# remove unnecessary directory
-RUN rm -rf ${MARABOU_HOME}/work
-
 # install scad_tot project
 RUN cd /tmp && wget -q -O scad_tot.zip ${SCAD_TOT_URL} && unzip -q scad_tot.zip \
     && mv scad_tot-master ${SCAD_TOT_PATH} && rm -rf scad_tot.zip
