@@ -17,4 +17,10 @@ else
     GEN_CERT=yes
 fi
 
-eval "/usr/local/bin/start-notebook.sh $STARTUP_ARGS"
+if [ "$SERVER_MODE" = "lab" ]; then
+    STARTUP_ARGS="jupyter lab $STARTUP_ARGS"
+else
+    STARTUP_ARGS="jupyter notebook $STARTUP_ARGS"
+fi
+
+eval "/usr/local/bin/start.sh $STARTUP_ARGS"

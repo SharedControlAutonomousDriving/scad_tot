@@ -6,7 +6,7 @@ The [marabou docker image](https://hub.docker.com/r/grese/marabou) is an ubuntu-
 
 * Runs Ubuntu 18.04 (bionic)
 * Based on [https://hub.docker.com/r/jupyter/tensorflow-notebook](jupyter/tensorflow-notebook)
-* Python3, Numpy, Tensorflow, Pandas, Jupyter Notebooks, and other useful pip packages
+* [Jupyter Lab](https://jupyter.org), Python3, Numpy, Tensorflow, Pandas, and other useful pip packages
 * Marabou & Marabou Python APIs installed
 * Standord's [NNet format tools](https://github.com/sisl/NNet) installed
 * ZShell is default shell
@@ -26,13 +26,13 @@ You'll need [docker](https://www.docker.com/products/docker-desktop) installed, 
 
 The image supports all of the normal docker command line options. Below are a few examples of ways to run the image. Choose the best one for your use-case.
 
-#### Run the Jupyter browser app
+#### Run the JupyterLab browser app
 
 **%** `docker run -p 9999:9999 grese/marabou`
 
 Once it is running, visit https://localhost:9999?token=TOKEN in your browser (TOKEN will be printed in the console when server starts)
 
-##### With a shared folder from your local machine (-v option)
+##### Run with a shared folder from your local machine (-v option)
 
 **%** `docker run -p 9999:9999 -v "$PWD":/home/marabou/work grese/marabou`
 
