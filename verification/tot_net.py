@@ -1,5 +1,5 @@
 import os, copy
-from maraboupy import Marabou, MarabouUtils
+from maraboupy import Marabou, MarabouCore, MarabouUtils
 import numpy as np
 
 default_outdir = './logs'
@@ -57,7 +57,7 @@ class TOTNet:
         assert(y_index < n_outputs)
         other_ys = [y for y in range(n_outputs) if y != y_index]
         for other_y in other_ys:
-            eq = MarabouUtils.Equation(EquationType=Marabou.Equation.LE)
+            eq = MarabouUtils.Equation(EquationType=MarabouCore.Equation.LE)
             eq.addAddend(1, self.get_output_var(other_y))
             eq.addAddend(-1, self.get_output_var(y_index))
             eq.setScalar(0)
