@@ -18,26 +18,29 @@ The [marabou docker image](https://hub.docker.com/r/grese/marabou) is an ubuntu-
 
 You'll need [docker](https://www.docker.com/products/docker-desktop) installed, so just install that first if you don't have it.
 
-
 ### Get the image
 
 **%** `docker pull grese/marabou`
 
-### Run the Jupyter browser app:
+### Ways to Run Image
+
+The image supports all of the normal docker command line options. Below are a few examples of ways to run the image. Choose the best one for your use-case.
+
+#### Run the Jupyter browser app
 
 **%** `docker run -p 9999:9999 grese/marabou`
 
-Once it is running, visit https://localhost:9999?token=TOKEN in your browser (TOKEN will be printed in the console when container starts)
+Once it is running, visit https://localhost:9999?token=TOKEN in your browser (TOKEN will be printed in the console when server starts)
 
-#### With a persistent volume from your local machine
+##### With a shared folder from your local machine (-v option)
 
 **%** `docker run -p 9999:9999 -v "$PWD":/home/marabou/work grese/marabou`
 
-### Run on command line:
+#### Run container command line
 
 **%** `docker run -p 9999:9999 -it grese/marabou /bin/zsh`
 
-### Run as daemon
+#### Run as daemon
 
 **%** `docker run -d -p 9999:9999 grese/marabou`
 
