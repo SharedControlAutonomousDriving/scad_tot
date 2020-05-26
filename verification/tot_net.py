@@ -9,17 +9,16 @@ class TOTNet:
     '''
     Class representing SCAD TOT Marabou network
     '''
-    def __init__(self, network_path, lbs=None, ubs=None, outdir=default_outdir):
-        self.network = Marabou.read_nnet(network_path)
-        self.__original_network = copy.deepcopy(self.network)
+    def __init__(self, network_path, lbs=None, ubs=None, marabou_verbosity=0, marabou_logdir=None):
+        self.__original_nnet = Marabou.read_nnet(network_path)
+        self.network = copy.deepcopy(self.__original_nnet)
         if not(lbs is None and ubs is None):
             assert(len(lbs) == len(ubs))
             assert(len(lbs) == self.get_num_inputs())
             self.set_lower_bounds(lbs)
             self.set_upper_bounds(ubs)
-        self.outdir = outdir
-        if not os.path.exists(self.outdir):
-            os.makedirs(outdir, mode=0o755)
+        self.__marabou_verbosity = marabou_verbosity
+        self.__marabou_logfile = os.path.join(marabou_logdir, 'marabou.log') if marabou_logdir else None
 
     def get_num_inputs(self):
         return len(self.network.inputVars[0])
@@ -37,13 +36,13 @@ class TOTNet:
         for x,v in enumerate(scaled_values):
             self.set_input_upper_bound(x, v)
     
-    def get_input_var(self, x):
-        assert(x < self.get_num_inputs())
-        return self.network.inputVars[0][x]
+    def get_input_var(self, x_index):
+        assert(x_index < self.get_num_inputs())
+        return self.network.inputVars[0][x_index]
     
-    def get_output_var(self, x):
-        assert(x < self.get_num_inputs())
-        return self.network.outputVars[0][x]
+    def get_output_var(self, x_index):
+        assert(x_index < self.get_num_inputs())
+        return self.network.outputVars[0][x_index]
 
     def set_input_lower_bound(self, x_index, scaled_value):
         variable = self.get_input_var(x_index)
@@ -82,9 +81,8 @@ class TOTNet:
         return self.get_lower_bounds(), self.get_upper_bounds()
 
     def solve(self, timeout=default_timeout):
-        options = Marabou.createOptions(timeoutInSeconds=timeout, verbosity=0)
-        # vals, stats = self.network.solve(filename=f'{self.outdir}/marabou.log', verbose=False, options=options)
-        vals, stats = self.network.solve(verbose=False, options=options)
+        options = Marabou.createOptions(timeoutInSeconds=timeout, verbosity=self.__marabou_verbosity)
+        vals, stats = self.network.solve(verbose=bool(self.__marabou_verbosity), options=options)
         assignment = ([], [])
         if len(vals) > 0:
             for i in range(self.get_num_inputs()):
@@ -93,23 +91,26 @@ class TOTNet:
                 assignment[1].append(vals[self.get_output_var(i)])
         return assignment, stats
     
-    def find_counterexample(self, input_lbs, input_ubs, expected_y, timeout=default_timeout):
-        assert(len(input_lbs) == self.get_num_inputs())
-        assert(expected_y < self.get_num_outputs())
-        other_ys = [y for y in range(self.get_num_outputs()) if y != expected_y]
+    def find_misclassification(self, lbs, ubs, y, timeout=default_timeout):
+        assert(len(lbs) == self.get_num_inputs())
+        assert(y < self.get_num_outputs())
+        other_ys = [oy for oy in range(self.get_num_outputs()) if oy != y]
         for oy in other_ys:
             self.reset()
-            self.set_lower_bounds(input_lbs)
-            self.set_upper_bounds(input_ubs)
+            self.set_lower_bounds(lbs)
+            self.set_upper_bounds(ubs)
             self.set_expected_category(oy)
             vals, stats = self.solve(timeout=timeout)
             if len(vals[0]) > 0 or len(vals[1]) > 0:
                 return (vals, stats)
         return None
 
-    def evaluate(self, input_vals, verbosity=0):
-        options = Marabou.createOptions(verbosity=0)
+    def evaluate(self, input_vals):
+        options = Marabou.createOptions(verbosity=bool(self.__marabou_verbosity))
         return self.network.evaluate([input_vals], options=options)[0]
+    
+    def check_prediction(self, inputs, y):
+        pred = self.evaluate(inputs)
 
     def reset(self):
-        self.network = copy.deepcopy(self.__original_network)
+        self.network = copy.deepcopy(self.__original_nnet)

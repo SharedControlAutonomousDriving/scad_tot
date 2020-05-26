@@ -12,7 +12,7 @@ default_emax = 100.0
 default_timeout = 0
 logger = create_logger('sensitivity', logdir=default_outdir)
 
-def save_sensitivity_results_to_csv(results, outdir=default_outdir):
+def save_sensitivity_results_to_csv(results, samples, outdir):
     '''
     saves sensitivity summary and detailed results in csv format.
 
@@ -37,7 +37,7 @@ def save_sensitivity_results_to_csv(results, outdir=default_outdir):
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_counterexample(net, sample, x, epsilon, asym_side='', timeout=default_timeout, verbose=0):
+def find_misclassification(net, sample, x, epsilon, asym_side='', timeout=default_timeout, verbose=0):
     inputs, outputs = sample
     # create upper and lower bounds (in asym mode, zero out the other side's epsilon)
     l_epsilon = 0 if asym_side and asym_side == 'u' else epsilon
@@ -46,7 +46,7 @@ def find_counterexample(net, sample, x, epsilon, asym_side='', timeout=default_t
     ubs = inputs[0:x] + [inputs[x]+u_epsilon] + inputs[x+1:]
     # find y index of prediction
     y_idx = outputs.index(max(outputs))
-    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout)
+    return net.find_misclassification(lbs, ubs, y_idx, timeout=timeout)
 
 def find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
     # count num places in decimal and mantissa
@@ -59,7 +59,7 @@ def find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='', time
         epsilons = [round(e, dp+1) for e in np.arange(lb, ub, lb)]
         if verbose > 1: logger.info(f'searching {len(epsilons)} coarse {asym_side+"_" if asym_side else ""}epsilons b/t {epsilons[0]} and {epsilons[-1]}')
         for i,e in enumerate(epsilons):
-            counterexample = find_counterexample(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
+            counterexample = find_misclassification(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
             if counterexample:
                 # return epsilon lower & upper bounds if counterexample was found
                 e_lb = epsilons[i-1] if i > 0 else round(e-lb, dp+1)
@@ -75,20 +75,24 @@ def find_epsilon(net, sample, x, e_min, e_max, e_prec, asym_side='', timeout=def
     epsilons = [round(e, dplaces) for e in np.arange(e_min, e_max, e_prec)]
     if verbose > 1: logger.info(f'searching {len(epsilons)} {asym_side+"_" if asym_side else ""}epsilons b/t {epsilons[0]} and {epsilons[-1]}')
     # binary search range of epsilons
-    e, l, m, h = 0, 0, 0, len(epsilons)-1
-    cex_found, best_epsilon = False, None
+    e = 0
+    l = 0
+    m = 0
+    h = len(epsilons) - 1
+    cex_found = False
+    epsilon = None
     while l <= h:
         m = (h + l) // 2
         e = epsilons[m]
-        counterexample = find_counterexample(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
+        counterexample = find_misclassification(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
         if counterexample:
             h = m - 1
             cex_found = True
         else:
             l = m + 1
-            best_epsilon = e
+            epsilon = e
     if cex_found:
-        return best_epsilon if best_epsilon is not None else round(e-e_prec, dplaces)
+        return epsilon if epsilon is not None else round(e-e_prec, dplaces)
     return 0
 
 def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max=default_emax, e_prec=None, asym=False, save_results=False, save_samples=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
@@ -121,12 +125,15 @@ def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max
                 e = find_epsilon(net, sample, x, e_bounds[0], e_bounds[1], e_prec, timeout=timeout, verbose=verbose)
                 if verbose > 0: logger.info(f'x{x}_s{s} epsilon: {e}')
                 epsilons.append((e, e))
-        x_summary = (-min([le for le,_ in epsilons if le != 0]), min([ue for _,ue in epsilons if ue != 0])) if epsilons else (0, 0)
+        
+        leps = [le for le,_ in epsilons if le != 0]
+        ueps = [ue for _,ue in epsilons if ue != 0]
+        x_summary = (-min(leps if leps else [0]), min(ueps if ueps else [0]))
         results[f'x{x}'] = (x_summary, epsilons)
     
     summary = {x:r[0] for x,r in results.items()}
     logger.info(('asymm ' if asym else '') + f'sensitivity: {summary}')
-    if save_results: save_sensitivity_results_to_csv(results, outdir=outdir)
+    if save_results: save_sensitivity_results_to_csv(results, samples, outdir)
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
