@@ -22,4 +22,6 @@ This option installs the project natively on your system. Using a `venv` is reco
 
 ## Download Dataset
 
-This repository does not include the dataset because it is too large. Download the CSV files and place them in `./data/`. <!-- TODO: ADD DATASET LINKS -->
+Run the following command to download the dataset.
+
+**%** `./scripts/download_data.sh`
