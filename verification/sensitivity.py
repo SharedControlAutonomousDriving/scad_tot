@@ -2,9 +2,9 @@
 
 import os
 import numpy as np
+from argparse import ArgumentParser
 from utils import create_logger, count_decimal_places, ms_since_1970, TOTUtils
 from tot_net import TOTNet
-from argparse import ArgumentParser
 
 default_outdir = './logs/sensitivity'
 default_emin = 0.0001

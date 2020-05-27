@@ -1,6 +1,6 @@
 import os, copy
-from maraboupy import Marabou, MarabouCore, MarabouUtils
 import numpy as np
+from maraboupy import Marabou, MarabouCore, MarabouUtils
 
 default_outdir = './logs'
 default_timeout = 0
