@@ -173,4 +173,4 @@ if __name__ == '__main__':
     samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.nnetpath)
     logger.info(f'starting local robustness test on {len(samples)} samples')
     results = test_local_robustness(args.nnetpath, samples, e_min=args.emin, e_max=args.emax, e_prec=args.eprec, asym=args.asym, coarse_pass=not args.nocoarse, timeout=args.timeout, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir, verbose=args.verbose)        
-    logger.info(f'local robustness results:', results[0])
+    logger.info(f'local robustness results: {results[0]}')

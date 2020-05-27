@@ -177,5 +177,5 @@ if __name__ == '__main__':
     samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.nnetpath)
     x_count = len(samples[0][0]) if not args.xindexes else len(args.xindexes)
     logger.info(f'starting sensitivity test for {x_count} features on {len(samples)} samples')
-    results = test_sensitivity(args.nnetpath, samples, x_indexes=args.xindexes, e_min=args.emin, e_max=args.emax, e_prec=args.eprec, asym=args.asym, coarse_pass=not args.nocoarse, timeout=args.timeout, save_results=args.saveresults, save_samples=args.savesamples, outdir=default_outdir, verbose=args.verbose)
-    logger.info(f'{"asym " if args.asym else ""}sensitivity results:', results[0])
+    results = test_sensitivity(args.nnetpath, samples, x_indexes=args.xindexes, e_min=args.emin, e_max=args.emax, e_prec=args.eprec, asym=args.asym, coarse_pass=not args.nocoarse, timeout=args.timeout, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir, verbose=args.verbose)
+    logger.info(f'{"asym " if args.asym else ""}sensitivity results: {results[0]}')
