@@ -37,7 +37,7 @@ def save_sensitivity_results_to_csv(results, samples, outdir):
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_misclassification(net, sample, x, epsilon, asym_side='', timeout=default_timeout, verbose=0):
+def find_counterexample(net, sample, x, epsilon, asym_side='', timeout=default_timeout, verbose=0):
     inputs, outputs = sample
     # create upper and lower bounds (in asym mode, zero out the other side's epsilon)
     l_epsilon = 0 if asym_side and asym_side == 'u' else epsilon
@@ -46,7 +46,7 @@ def find_misclassification(net, sample, x, epsilon, asym_side='', timeout=defaul
     ubs = inputs[0:x] + [inputs[x]+u_epsilon] + inputs[x+1:]
     # find y index of prediction
     y_idx = outputs.index(max(outputs))
-    return net.find_misclassification(lbs, ubs, y_idx, timeout=timeout)
+    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout)
 
 def find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
     # count num places in decimal and mantissa
@@ -59,7 +59,7 @@ def find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='', time
         epsilons = [round(e, dp+1) for e in np.arange(lb, ub, lb)]
         if verbose > 1: logger.info(f'searching {len(epsilons)} coarse {asym_side+"_" if asym_side else ""}epsilons b/t {epsilons[0]} and {epsilons[-1]}')
         for i,e in enumerate(epsilons):
-            counterexample = find_misclassification(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
+            counterexample = find_counterexample(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
             if counterexample:
                 # return epsilon lower & upper bounds if counterexample was found
                 e_lb = epsilons[i-1] if i > 0 else round(e-lb, dp+1)
@@ -84,7 +84,7 @@ def find_epsilon(net, sample, x, e_min, e_max, e_prec, asym_side='', timeout=def
     while l <= h:
         m = (h + l) // 2
         e = epsilons[m]
-        counterexample = find_misclassification(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
+        counterexample = find_counterexample(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
         if counterexample:
             h = m - 1
             cex_found = True
@@ -95,7 +95,7 @@ def find_epsilon(net, sample, x, e_min, e_max, e_prec, asym_side='', timeout=def
         return epsilon if epsilon is not None else round(e-e_prec, dplaces)
     return 0
 
-def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max=default_emax, e_prec=None, asym=False, save_results=False, save_samples=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
+def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max=default_emax, e_prec=None, asym=False, coarse_pass=True, save_results=False, save_samples=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
     if not e_prec:
         dp_prec = count_decimal_places(e_min)+1
         e_prec = round(1/(10**dp_prec), dp_prec)
@@ -108,22 +108,34 @@ def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max
         epsilons = []
         for s,sample in enumerate(samples):
             if asym:
-                # find coarse bounds for lower and upper epsilon
-                le_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f'x{x}_s{s} lower epsilon coarse bounds: {le_bounds}')
-                ue_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f'x{x}_s{s} upper epsilon coarse bounds: {ue_bounds}')
+                le_bounds, ue_bounds = (e_min, e_max), (e_min, e_max)
+                if coarse_pass:
+                    # find coarse bounds for lower and upper epsilon
+                    step_start = ms_since_1970()
+                    le_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
+                    if verbose > 1: logger.info(f'x{x}_s{s} lower epsilon coarse bounds: {le_bounds} ({ms_since_1970() - step_start}ms)')
+                    step_start = ms_since_1970()
+                    ue_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
+                    if verbose > 1: logger.info(f'x{x}_s{s} upper epsilon coarse bounds: {ue_bounds} ({ms_since_1970() - step_start}ms)')
                 # find lower and upper epsilon within the coarse bounds
+                step_start = ms_since_1970()
                 le = find_epsilon(net, sample, x, le_bounds[0], le_bounds[1], e_prec, asym_side='l', timeout=timeout, verbose=verbose)
-                if verbose > 0: logger.info(f'x{x}_s{s} lower epsilon: {le}')
+                if verbose > 0: logger.info(f'x{x}_s{s} lower epsilon: {le} ({ms_since_1970() - step_start}ms)')
+                step_start = ms_since_1970()
                 ue = find_epsilon(net, sample, x, ue_bounds[0], ue_bounds[1], e_prec, asym_side='u', timeout=timeout, verbose=verbose)
-                if verbose > 0: logger.info(f'x{x}_s{s} upper epsilon: {ue}')
+                if verbose > 0: logger.info(f'x{x}_s{s} upper epsilon: {ue} ({ms_since_1970() - step_start}ms)')
                 epsilons.append((le, ue))
             else:
-                e_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f'x{x}_s{s} coarse epsilon bounds: {e_bounds}')
+                e_bounds = (e_min, e_max)
+                if coarse_pass:
+                    # find coarse bounds for epsilon
+                    step_start = ms_since_1970()
+                    e_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, timeout=timeout, verbose=verbose)
+                    if verbose > 1: logger.info(f'x{x}_s{s} coarse epsilon bounds: {e_bounds} ({ms_since_1970() - step_start}ms)')
+                # find epsilon within ebounds
+                step_start = ms_since_1970()
                 e = find_epsilon(net, sample, x, e_bounds[0], e_bounds[1], e_prec, timeout=timeout, verbose=verbose)
-                if verbose > 0: logger.info(f'x{x}_s{s} epsilon: {e}')
+                if verbose > 0: logger.info(f'x{x}_s{s} epsilon: {e} ({ms_since_1970() - step_start}ms)')
                 epsilons.append((e, e))
         
         leps = [le for le,_ in epsilons if le != 0]
@@ -132,7 +144,7 @@ def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max
         results[f'x{x}'] = (x_summary, epsilons)
     
     summary = {x:r[0] for x,r in results.items()}
-    logger.info(('asymm ' if asym else '') + f'sensitivity: {summary}')
+    logger.info(('asymm ' if asym else '') + f'sensitivity: {summary} ({ms_since_1970() - start}ms)')
     if save_results: save_sensitivity_results_to_csv(results, samples, outdir)
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
@@ -149,8 +161,8 @@ if __name__ == '__main__':
     parser.add_argument('-emin', '--emin', type=float, default=default_emin)
     parser.add_argument('-emax', '--emax', type=float, default=default_emax)
     parser.add_argument('-eprec', '--eprec', type=float, default=None)
-    # parser.add_argument('-mt', '--multithread', action='store_true')
     parser.add_argument('-a', '--asym', action='store_true')
+    parser.add_argument('-nc', '--nocoarse', action='store_true')
     parser.add_argument('-t', '--timeout', type=int, default=default_timeout)
     parser.add_argument('-sr', '--saveresults', action='store_true')
     parser.add_argument('-ss', '--savesamples', action='store_true')
@@ -165,5 +177,5 @@ if __name__ == '__main__':
     samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.nnetpath)
     x_count = len(samples[0][0]) if not args.xindexes else len(args.xindexes)
     logger.info(f'starting sensitivity test for {x_count} features on {len(samples)} samples')
-    results = test_sensitivity(args.nnetpath, samples, x_indexes=args.xindexes, e_min=args.emin, e_max=args.emax, e_prec=args.eprec, asym=args.asym, timeout=args.timeout, save_results=args.saveresults, save_samples=args.savesamples, outdir=default_outdir, verbose=args.verbose)
-    logger.info(f'sensitivity results:', results[0])
+    results = test_sensitivity(args.nnetpath, samples, x_indexes=args.xindexes, e_min=args.emin, e_max=args.emax, e_prec=args.eprec, asym=args.asym, coarse_pass=not args.nocoarse, timeout=args.timeout, save_results=args.saveresults, save_samples=args.savesamples, outdir=default_outdir, verbose=args.verbose)
+    logger.info(f'{"asym " if args.asym else ""}sensitivity results:', results[0])

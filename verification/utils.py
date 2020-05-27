@@ -122,9 +122,8 @@ class TOTUtils:
         net = TOTNet(nnet_path)
         for sample in samples:
             inputs, outputs = sample
-            exp_y = outputs.index(max(outputs))
-            pred = net.evaluate(inputs)
-            is_correct = list(pred).index(max(pred)) == exp_y
+            y = outputs.index(max(outputs))
+            is_correct = net.check_prediction(inputs, y)
             if (not incorrect and is_correct) or (incorrect and not is_correct):
                 filtered.append(sample)
         return filtered

@@ -91,7 +91,7 @@ class TOTNet:
                 assignment[1].append(vals[self.get_output_var(i)])
         return assignment, stats
     
-    def find_misclassification(self, lbs, ubs, y, timeout=default_timeout):
+    def find_counterexample(self, lbs, ubs, y, timeout=default_timeout):
         assert(len(lbs) == self.get_num_inputs())
         assert(y < self.get_num_outputs())
         other_ys = [oy for oy in range(self.get_num_outputs()) if oy != y]
@@ -105,12 +105,15 @@ class TOTNet:
                 return (vals, stats)
         return None
 
+    def check_prediction(self, inputs, y):
+        pred = self.evaluate(inputs)
+        pred_val = max(pred)
+        pred_idxs = [i for i,v in enumerate(pred) if v == pred_val]
+        return len(pred_idxs) == 1 and pred_idxs[0] == y
+
     def evaluate(self, input_vals):
         options = Marabou.createOptions(verbosity=bool(self.__marabou_verbosity))
         return self.network.evaluate([input_vals], options=options)[0]
-    
-    def check_prediction(self, inputs, y):
-        pred = self.evaluate(inputs)
 
     def reset(self):
         self.network = copy.deepcopy(self.__original_nnet)
