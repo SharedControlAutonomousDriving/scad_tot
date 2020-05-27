@@ -103,25 +103,26 @@ def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=N
     start = ms_since_1970()
     epsilons = []
     for s,sample in enumerate(samples):
+        sid = f's{s}'
         if asym:
             l_ce_lb, l_ce_ub = (e_min, e_max), (e_min, e_max)
             if coarse_pass:
                 # find coarse bounds for lower epsilon
                 step_start = ms_since_1970()
                 l_ce_lb, l_ce_ub = find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f's{s} lower epsilon coarse bounds: {l_ce_lb, l_ce_ub} ({ms_since_1970() - step_start}ms)')
+                if verbose > 1: logger.info(f'{sid} lower epsilon coarse bounds: {l_ce_lb, l_ce_ub} ({ms_since_1970() - step_start}ms)')
                 # find coarse bounds for upper epsilon
                 step_start = ms_since_1970()
                 u_ce_lb, u_ce_ub = find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f's{s} upper epsilon coarse bounds: {u_ce_lb, u_ce_ub} ({ms_since_1970() - step_start}ms)')
+                if verbose > 1: logger.info(f'{sid} upper epsilon coarse bounds: {u_ce_lb, u_ce_ub} ({ms_since_1970() - step_start}ms)')
             # find lower epsilon within coarse bounds
             step_start = ms_since_1970()
             le = find_epsilon(net, sample, l_ce_lb, l_ce_ub, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
-            if verbose > 0: logger.info(f's{s} lower epsilon: {le} ({ms_since_1970() - step_start}ms)')
+            if verbose > 0: logger.info(f'{sid} lower epsilon: {le} ({ms_since_1970() - step_start}ms)')
             # find upper epsilon within coarse bounds
             step_start = ms_since_1970()
             ue = find_epsilon(net, sample, u_ce_lb, u_ce_ub, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
-            if verbose > 0: logger.info(f's{s} upper epsilon: {ue} ({ms_since_1970() - step_start}ms)')
+            if verbose > 0: logger.info(f'{sid} upper epsilon: {ue} ({ms_since_1970() - step_start}ms)')
             epsilons.append((le, ue))
         else:
             ce_lb, ce_ub = e_min, e_max
@@ -129,11 +130,11 @@ def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=N
                 # find coarse bounds for epsilon
                 step_start = ms_since_1970()
                 ce_lb, ce_ub = find_epsilon_bounds(net, sample, e_min, e_max, e_prec, timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f's{s} coarse epsilon bounds: {ce_lb, ce_ub} ({ms_since_1970() - step_start}ms)')
+                if verbose > 1: logger.info(f'{sid} coarse epsilon bounds: {ce_lb, ce_ub} ({ms_since_1970() - step_start}ms)')
             # find epsilon within coarse bounds
             step_start = ms_since_1970()
             epsilon = find_epsilon(net, sample, ce_lb, ce_ub, e_prec, timeout=timeout, verbose=verbose)
-            if verbose > 0: logger.info(f's{s} epsilon: {epsilon} ({ms_since_1970() - step_start}ms)')
+            if verbose > 0: logger.info(f'{sid} epsilon: {epsilon} ({ms_since_1970() - step_start}ms)')
             # update running min epislon
             epsilons.append((epsilon, epsilon))
     # save and return test results

@@ -105,25 +105,27 @@ def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max
     x_indexes = x_indexes if x_indexes else [x for x in range(net.get_num_inputs())]
     results = {}
     for x in x_indexes:
+        xid, x_start = f'x{x}', ms_since_1970()
         epsilons = []
         for s,sample in enumerate(samples):
+            sid = f's{s}'
             if asym:
                 le_bounds, ue_bounds = (e_min, e_max), (e_min, e_max)
                 if coarse_pass:
                     # find coarse bounds for lower and upper epsilon
                     step_start = ms_since_1970()
                     le_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
-                    if verbose > 1: logger.info(f'x{x}_s{s} lower epsilon coarse bounds: {le_bounds} ({ms_since_1970() - step_start}ms)')
+                    if verbose > 1: logger.info(f'{xid}_{sid} lower epsilon coarse bounds: {le_bounds} ({ms_since_1970() - step_start}ms)')
                     step_start = ms_since_1970()
                     ue_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
-                    if verbose > 1: logger.info(f'x{x}_s{s} upper epsilon coarse bounds: {ue_bounds} ({ms_since_1970() - step_start}ms)')
+                    if verbose > 1: logger.info(f'{xid}_{sid} upper epsilon coarse bounds: {ue_bounds} ({ms_since_1970() - step_start}ms)')
                 # find lower and upper epsilon within the coarse bounds
                 step_start = ms_since_1970()
                 le = find_epsilon(net, sample, x, le_bounds[0], le_bounds[1], e_prec, asym_side='l', timeout=timeout, verbose=verbose)
-                if verbose > 0: logger.info(f'x{x}_s{s} lower epsilon: {le} ({ms_since_1970() - step_start}ms)')
+                if verbose > 0: logger.info(f'{xid}_{sid} lower epsilon: {le} ({ms_since_1970() - step_start}ms)')
                 step_start = ms_since_1970()
                 ue = find_epsilon(net, sample, x, ue_bounds[0], ue_bounds[1], e_prec, asym_side='u', timeout=timeout, verbose=verbose)
-                if verbose > 0: logger.info(f'x{x}_s{s} upper epsilon: {ue} ({ms_since_1970() - step_start}ms)')
+                if verbose > 0: logger.info(f'{xid}_{sid} upper epsilon: {ue} ({ms_since_1970() - step_start}ms)')
                 epsilons.append((le, ue))
             else:
                 e_bounds = (e_min, e_max)
@@ -131,16 +133,17 @@ def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max
                     # find coarse bounds for epsilon
                     step_start = ms_since_1970()
                     e_bounds = find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, timeout=timeout, verbose=verbose)
-                    if verbose > 1: logger.info(f'x{x}_s{s} coarse epsilon bounds: {e_bounds} ({ms_since_1970() - step_start}ms)')
+                    if verbose > 1: logger.info(f'{xid}_{sid} coarse epsilon bounds: {e_bounds} ({ms_since_1970() - step_start}ms)')
                 # find epsilon within ebounds
                 step_start = ms_since_1970()
                 e = find_epsilon(net, sample, x, e_bounds[0], e_bounds[1], e_prec, timeout=timeout, verbose=verbose)
-                if verbose > 0: logger.info(f'x{x}_s{s} epsilon: {e} ({ms_since_1970() - step_start}ms)')
+                if verbose > 0: logger.info(f'{xid}_{sid} epsilon: {e} ({ms_since_1970() - step_start}ms)')
                 epsilons.append((e, e))
         
         leps = [le for le,_ in epsilons if le != 0]
         ueps = [ue for _,ue in epsilons if ue != 0]
         x_summary = (-min(leps if leps else [0]), min(ueps if ueps else [0]))
+        if verbose > 0: logger.info(f'{xid} epsilon: {x_summary} ({ms_since_1970() - x_start}ms)')
         results[f'x{x}'] = (x_summary, epsilons)
     
     summary = {x:r[0] for x,r in results.items()}
