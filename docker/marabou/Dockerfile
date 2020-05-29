@@ -54,7 +54,7 @@ RUN chmod +x /usr/local/bin/startup.sh
 
 # Upgrade pip and install packages
 RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir pybind11 pytest
+RUN pip install --no-cache-dir pybind11 pytest pytest-cov codecov
 RUN pip install --no-cache-dir onnx onnxruntime
 
 # Download, unzip, build, and setup marabou
