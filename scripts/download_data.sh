@@ -18,4 +18,4 @@ mkdir -p $DATA_PATH
 # wget -O $DATA_PATH/train.csv $TRAIN_DATA_URL
 # wget -O $DATA_PATH/test.csv $TEST_DATA_URL
 
-wget -O $DATA_PATH/data.csv $TEST_DATA_URL
+wget -O $DATA_PATH/data.csv "$TEST_DATA_URL"
