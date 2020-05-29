@@ -20,7 +20,7 @@ def save_sensitivity_results_to_csv(results, samples, outdir):
     @param outdir (string): output directory
     '''
     summary_lines = ['x,leps,ueps\n']
-    details_lines = ['x,s,leps,ueps,expy,predy\n']
+    details_lines = ['x,s,leps,ueps,spred\n']
     for x_id, result in results.items():
         x = int(x_id[1:])
         summary, details = result

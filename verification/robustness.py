@@ -17,7 +17,7 @@ def save_local_robustness_results_to_csv(results, samples, outdir):
     saves local robustness summary and detailed results in csv format.
     '''
     summary_lines = ['leps,ueps\n']
-    details_lines = ['s,leps,ueps\n']
+    details_lines = ['s,leps,ueps,spred\n']
     summary, details = results
     summary_lines.append(','.join([str(summary[0]), str(summary[1])])+'\n')
     details_lines.extend([','.join([str(s), str(detail[0]), str(detail[1]), str(samples[s][1].index(max(samples[s][1])))])+'\n' for s,detail in enumerate(details)])
