@@ -29,11 +29,16 @@ done
 shift $((OPTIND-1))
 
 # Build docker images
-build_image() { cd $1 && docker build -t $2 . && cd - > /dev/null }
+build_image() {
+	[ "$3" = "0" ] && local CACHE_ARG="--no-cache" || local CACHE_ARG=""
+	cd $1
+	docker build $CACHE_ARG -t $2 .
+	cd - > /dev/null
+}
 
 echo "Building docker images..."
 build_image $MARABOU_DOCKER_PATH $MARABOU_DOCKER_IMAGE
-build_image $SCAD_TOT_DOCKER_PATH $SCAD_TOT_DOCKER_IMAGE
+build_image $SCAD_TOT_DOCKER_PATH $SCAD_TOT_DOCKER_IMAGE 0
 
 # Push images to docker hub (requires -p flag)
 push_image() { docker push $1 }
