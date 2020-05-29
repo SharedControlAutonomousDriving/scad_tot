@@ -62,7 +62,7 @@ def find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='', time
             counterexample = find_counterexample(net, sample, x, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
             if counterexample:
                 # return epsilon lower & upper bounds if counterexample was found
-                e_lb = epsilons[i-1] if i > 0 else round(e-lb, dp+1)
+                e_lb = epsilons[i-1] if i > 0 else round(e-(lb/10), dp+2)
                 e_ub = e
                 return (e_lb, e_ub)
     return (e_min, e_max)
@@ -181,7 +181,7 @@ def check_sensitivity(nnet_path, samples, results, asym=False, find_multiple=Fal
         if not n_cexs:
             logger.info(f'{xid} ok {le, ue}')
         else:
-            logger.info(f'{xid} counterexamples found for {n_cexs} samples {le, ue}:\n{test_results[xid]}')
+            logger.info(f'{xid} counterexamples found for {n_cexs} samples {le, ue}\n{test_results[xid]}')
     return test_results
 
 if __name__ == '__main__':

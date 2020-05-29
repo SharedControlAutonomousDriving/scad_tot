@@ -62,7 +62,7 @@ def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', timeout
             counterexample = find_counterexample(net, sample, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
             if counterexample:
                 # return epsilon lower & upper bounds if counterexample was found
-                e_lb = epsilons[i-1] if i > 0 else round(e-lb, dp+1)
+                e_lb = epsilons[i-1] if i > 0 else round(e-(lb/10), dp+2)
                 e_ub = e
                 return (e_lb, e_ub)
     return (e_min, e_max)
@@ -174,7 +174,7 @@ def check_local_robustness(nnet_path, samples, results, asym=False, find_multipl
     if not n_cexs:
         logger.info(f'{sid} ok {le, ue}')
     else:
-        logger.info(f'counterexamples found for {n_cexs} samples {le, ue}:\n{check_results}')
+        logger.info(f'counterexamples found for {n_cexs} samples {le, ue}\n{check_results}')
     return check_results
 
 if __name__ == '__main__':
