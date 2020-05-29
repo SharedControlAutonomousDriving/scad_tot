@@ -147,6 +147,36 @@ def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=N
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
+def check_local_robustness(nnet_path, samples, results, asym=False, find_multiple=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
+    def check_epsilon(net, sample, le, ue, asym=False, find_multiple=False):
+        inputs, outputs = sample
+        y = outputs.index(max(outputs))
+        lbs, ubs = [x+le for x in inputs], [x+ue for x in inputs]
+        cexs = None
+        if asym:
+            cexs = (
+                net.find_counterexample(lbs, inputs, y, find_multiple=find_multiple),
+                net.find_counterexample(inputs, ubs, y, find_multiple=find_multiple)
+                )
+        else:
+            cexs = net.find_counterexample(lbs, ubs, y, find_multiple=find_multiple)
+        return cexs
+    
+    net = TOTNet(nnet_path)
+    check_results = {}
+    le, ue = results[0]
+    for s,sample in enumerate(samples):
+        sid = f's{s}'
+        cexs = check_epsilon(net, sample, le, ue, asym=asym, find_multiple=find_multiple)
+        check_results[sid] = cexs
+    
+    n_cexs = len([c for c in check_results.values() if c]) if not asym else len([c for c in check_results.values() if c[0] or c[1]])
+    if not n_cexs:
+        logger.info(f'{sid} ok {le, ue}')
+    else:
+        logger.info(f'counterexamples found for {n_cexs} samples {le, ue}:\n{check_results}')
+    return check_results
+
 if __name__ == '__main__':
     '''
     Usage: python3 verification/robustness.py -n NNETPATH -d DATAPATH [-df FRAC -emin EMIN -emax EMAX -eprec EPREC -a -t TIMEOUT -sr -ss -sl -o OUTDIR -v V]

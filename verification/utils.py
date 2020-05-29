@@ -31,6 +31,11 @@ def create_logger(name, level=logging.DEBUG, to_file=False, to_console=True, log
 def print_heading(text):
     print(('-'*40) + f'\n{text}\n')
 
+class TOTSample:
+    def __init__(self, inputs, outputs, id=None):
+        self.inputs = inputs
+        self.outputs = outputs
+
 class TOTUtils:
     _features = ('FixationDuration', 'FixationSeq', 'FixationStart', 'FixationX', 
                  'FixationY', 'GazeDirectionLeftZ', 'GazeDirectionRightZ', 'PupilLeft', 

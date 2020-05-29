@@ -20,7 +20,7 @@ def save_sensitivity_results_to_csv(results, samples, outdir):
     @param outdir (string): output directory
     '''
     summary_lines = ['x,leps,ueps\n']
-    details_lines = ['x,s,leps,ueps\n']
+    details_lines = ['x,s,leps,ueps,expy,predy\n']
     for x_id, result in results.items():
         x = int(x_id[1:])
         summary, details = result
@@ -151,6 +151,38 @@ def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max
     if save_results: save_sensitivity_results_to_csv(results, samples, outdir)
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
+
+def check_sensitivity(nnet_path, samples, results, asym=False, find_multiple=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
+    def check_input_epsilon(net, sample, x, le, ue, asym=False, find_multiple=False):
+        inputs, outputs = sample
+        y = outputs.index(max(outputs))
+        lbs = inputs[0:x] + [inputs[x]+le] + inputs[x+1:]
+        ubs = inputs[0:x] + [inputs[x]+ue] + inputs[x+1:]
+        cexs = None
+        if asym:
+            cexs = (
+                net.find_counterexample(lbs, inputs, y, find_multiple=find_multiple),
+                net.find_counterexample(inputs, ubs, y, find_multiple=find_multiple)
+                )
+        else:
+            cexs = net.find_counterexample(lbs, ubs, y, find_multiple=find_multiple)
+        return cexs
+    
+    net = TOTNet(nnet_path)
+    test_results = {}
+    for xid,result in results.items():
+        x = int(xid[1:])
+        le, ue = result[0]
+        test_results[xid] = []
+        for sample in samples:
+            counterexamples = check_input_epsilon(net, sample, x, le, ue, asym=asym, find_multiple=find_multiple)
+            test_results[xid].append(counterexamples)
+        n_cexs = len([c for c in test_results[xid] if c]) if not asym else len([c for c in test_results[xid] if c[0] or c[1]])
+        if not n_cexs:
+            logger.info(f'{xid} ok {le, ue}')
+        else:
+            logger.info(f'{xid} counterexamples found for {n_cexs} samples {le, ue}:\n{test_results[xid]}')
+    return test_results
 
 if __name__ == '__main__':
     '''
