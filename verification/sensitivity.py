@@ -37,7 +37,7 @@ def save_sensitivity_results_to_csv(results, samples, outdir):
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_counterexample(net, sample, x, epsilon, asym_side='', timeout=default_timeout, verbose=0):
+def find_counterexample(net, sample, x, epsilon, asym_side='', multiple=False, timeout=default_timeout, verbose=0):
     inputs, outputs = sample
     # create upper and lower bounds (in asym mode, zero out the other side's epsilon)
     l_epsilon = 0 if asym_side and asym_side == 'u' else epsilon
@@ -46,7 +46,7 @@ def find_counterexample(net, sample, x, epsilon, asym_side='', timeout=default_t
     ubs = inputs[0:x] + [inputs[x]+u_epsilon] + inputs[x+1:]
     # find y index of prediction
     y_idx = outputs.index(max(outputs))
-    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout)
+    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout, multiple=multiple)
 
 def find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
     # count num places in decimal and mantissa
@@ -152,22 +152,18 @@ def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
-def check_sensitivity(nnet_path, samples, results, asym=False, find_multiple=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
-    def check_input_epsilon(net, sample, x, le, ue, asym=False, find_multiple=False):
-        inputs, outputs = sample
-        y = outputs.index(max(outputs))
-        lbs = inputs[0:x] + [inputs[x]+le] + inputs[x+1:]
-        ubs = inputs[0:x] + [inputs[x]+ue] + inputs[x+1:]
+def check_sensitivity(nnet_path, samples, results, asym=False, multiple=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
+    def check_input_epsilon(net, sample, x, le, ue, asym=False, multiple=False):
         cexs = None
         if asym:
             cexs = (
-                net.find_counterexample(lbs, inputs, y, find_multiple=find_multiple),
-                net.find_counterexample(inputs, ubs, y, find_multiple=find_multiple)
+                find_counterexample(net, sample, x, le, asym_side='l', multiple=multiple, timeout=timeout, verbose=verbose),
+                find_counterexample(net, sample, x, ue, asym_side='u', multiple=multiple, timeout=timeout, verbose=verbose)
                 )
         else:
-            cexs = net.find_counterexample(lbs, ubs, y, find_multiple=find_multiple)
+            cexs = find_counterexample(net, sample, x, ue, multiple=multiple, timeout=timeout, verbose=verbose)
         return cexs
-    
+
     net = TOTNet(nnet_path)
     test_results = {}
     for xid,result in results.items():
@@ -175,13 +171,13 @@ def check_sensitivity(nnet_path, samples, results, asym=False, find_multiple=Fal
         le, ue = result[0]
         test_results[xid] = []
         for sample in samples:
-            counterexamples = check_input_epsilon(net, sample, x, le, ue, asym=asym, find_multiple=find_multiple)
+            counterexamples = check_input_epsilon(net, sample, x, le, ue, asym=asym, multiple=multiple)
             test_results[xid].append(counterexamples)
         n_cexs = len([c for c in test_results[xid] if c]) if not asym else len([c for c in test_results[xid] if c[0] or c[1]])
         if not n_cexs:
-            logger.info(f'{xid} ok {le, ue}')
+            if verbose > 0: logger.info(f'{xid} ok {le, ue}')
         else:
-            logger.info(f'{xid} counterexamples found for {n_cexs} samples {le, ue}\n{test_results[xid]}')
+            if verbose > 0: logger.info(f'{xid} counterexamples found for {n_cexs} samples {le, ue}\n{test_results[xid]}')
     return test_results
 
 if __name__ == '__main__':
@@ -199,6 +195,7 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--asym', action='store_true')
     parser.add_argument('-nc', '--nocoarse', action='store_true')
     parser.add_argument('-t', '--timeout', type=int, default=default_timeout)
+    parser.add_argument('-ck', '--checkresults', action='store_true')
     parser.add_argument('-sr', '--saveresults', action='store_true')
     parser.add_argument('-ss', '--savesamples', action='store_true')
     parser.add_argument('-sl', '--savelogs', action='store_true')
@@ -211,6 +208,9 @@ if __name__ == '__main__':
     # load % of samples, and filter out incorrect predictions
     samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.nnetpath)
     x_count = len(samples[0][0]) if not args.xindexes else len(args.xindexes)
-    logger.info(f'starting sensitivity test for {x_count} features on {len(samples)} samples')
+    logger.info(f'starting sensitivity test for {x_count} features on {len(samples)} samples...')
     results = test_sensitivity(args.nnetpath, samples, x_indexes=args.xindexes, e_min=args.emin, e_max=args.emax, e_prec=args.eprec, asym=args.asym, coarse_pass=not args.nocoarse, timeout=args.timeout, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir, verbose=args.verbose)
-    logger.info(f'{"asym " if args.asym else ""}sensitivity results: {results[0]}')
+    if args.checkresults:
+        logger.info(f'checking {"asym " if args.asym else ""} sensitivity results...')
+        check_results = check_sensitivity(args.nnetpath, samples, results, asym=args.asym, outdir=args.outdir, timeout=args.timeout, verbose=args.verbose)
+        logger.info(f'sensitivity check results:\n{check_results}')

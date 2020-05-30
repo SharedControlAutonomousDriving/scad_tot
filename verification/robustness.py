@@ -32,7 +32,7 @@ def save_local_robustness_results_to_csv(results, samples, outdir):
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_counterexample(net, sample, epsilon, asym_side='', timeout=default_timeout, verbose=0):
+def find_counterexample(net, sample, epsilon, asym_side='', multiple=False, timeout=default_timeout, verbose=0):
     '''
     finds counterexample where classification changed for a given epsilon. None if no counterexamples found.
     '''
@@ -43,7 +43,7 @@ def find_counterexample(net, sample, epsilon, asym_side='', timeout=default_time
     lbs = [x-l_epsilon for x in inputs]
     ubs = [x+u_epsilon for x in inputs]
     y_idx = outputs.index(max(outputs))
-    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout)
+    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout, multiple=multiple)
 
 def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
     '''
@@ -147,19 +147,16 @@ def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=N
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
-def check_local_robustness(nnet_path, samples, results, asym=False, find_multiple=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
-    def check_epsilon(net, sample, le, ue, asym=False, find_multiple=False):
-        inputs, outputs = sample
-        y = outputs.index(max(outputs))
-        lbs, ubs = [x+le for x in inputs], [x+ue for x in inputs]
-        cexs = None
+def check_local_robustness(nnet_path, samples, results, asym=False, multiple=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
+    def check_epsilons(net, sample, le, ue, asym=False, multiple=False):
+        cexs = []
         if asym:
             cexs = (
-                net.find_counterexample(lbs, inputs, y, find_multiple=find_multiple),
-                net.find_counterexample(inputs, ubs, y, find_multiple=find_multiple)
-                )
+                find_counterexample(net, sample, le, asym_side='l', verbose=verbose, multiple=multiple),
+                find_counterexample(net, sample, ue, asym_side='u', verbose=verbose, multiple=multiple)
+            )
         else:
-            cexs = net.find_counterexample(lbs, ubs, y, find_multiple=find_multiple)
+            cexs = find_counterexample(net, sample, ue, verbose=verbose, multiple=multiple)
         return cexs
     
     net = TOTNet(nnet_path)
@@ -167,14 +164,14 @@ def check_local_robustness(nnet_path, samples, results, asym=False, find_multipl
     le, ue = results[0]
     for s,sample in enumerate(samples):
         sid = f's{s}'
-        cexs = check_epsilon(net, sample, le, ue, asym=asym, find_multiple=find_multiple)
+        cexs = check_epsilons(net, sample, le, ue, asym=asym, multiple=multiple)
         check_results[sid] = cexs
     
     n_cexs = len([c for c in check_results.values() if c]) if not asym else len([c for c in check_results.values() if c[0] or c[1]])
     if not n_cexs:
-        logger.info(f'{sid} ok {le, ue}')
+        if verbose > 0: logger.info(f'{sid} ok {le, ue}')
     else:
-        logger.info(f'counterexamples found for {n_cexs} samples {le, ue}\n{check_results}')
+        if verbose > 0: logger.info(f'counterexamples found for {n_cexs} samples {le, ue}\n{check_results}')
     return check_results
 
 if __name__ == '__main__':
@@ -191,6 +188,7 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--asym', action='store_true')
     parser.add_argument('-nc', '--nocoarse', action='store_true')
     parser.add_argument('-t', '--timeout', default=default_timeout)
+    parser.add_argument('-ck', '--checkresults', action='store_true')
     parser.add_argument('-sr', '--saveresults', action='store_true')
     parser.add_argument('-ss', '--savesamples', action='store_true')
     parser.add_argument('-sl', '--savelogs', action='store_true')
@@ -204,4 +202,7 @@ if __name__ == '__main__':
     samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.nnetpath)
     logger.info(f'starting local robustness test on {len(samples)} samples')
     results = test_local_robustness(args.nnetpath, samples, e_min=args.emin, e_max=args.emax, e_prec=args.eprec, asym=args.asym, coarse_pass=not args.nocoarse, timeout=args.timeout, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir, verbose=args.verbose)        
-    logger.info(f'local robustness results: {results[0]}')
+    if args.checkresults:
+        logger.info(f'checking {"asym " if args.asym else ""} robustness results...')
+        check_results = check_local_robustness(args.nnetpath, samples, results, asym=args.asym, outdir=args.outdir, timeout=args.timeout, verbose=args.verbose)
+        logger.info(f'local robustness check results:\n{check_results}')

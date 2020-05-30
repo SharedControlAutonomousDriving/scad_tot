@@ -73,7 +73,7 @@ class TOTNet:
         n = self.get_num_inputs()
         return [self.get_input_lower_bound(x) for x in range(n)]
     
-    def get_lower_bounds(self):
+    def get_upper_bounds(self):
         n = self.get_num_inputs()
         return [self.get_input_upper_bound(x) for x in range(n)]
 
@@ -91,7 +91,7 @@ class TOTNet:
                 assignment[1].append(vals[self.get_output_var(i)])
         return assignment, stats
     
-    def find_counterexample(self, lbs, ubs, y, find_multiple=False, timeout=default_timeout):
+    def find_counterexample(self, lbs, ubs, y, multiple=False, timeout=default_timeout):
         assert(len(lbs) == self.get_num_inputs())
         assert(y < self.get_num_outputs())
         other_ys = [oy for oy in range(self.get_num_outputs()) if oy != y]
@@ -104,11 +104,11 @@ class TOTNet:
             result = self.solve(timeout=timeout)
             vals, _ = result
             if len(vals[0]) > 0 or len(vals[1]) > 0:
-                if find_multiple:
+                if multiple:
                     counterexamples.append(result)
                 else:
                     return result
-        return None if not find_multiple else counterexamples
+        return None if not multiple else counterexamples
 
     def check_prediction(self, inputs, y):
         pred = self.evaluate(inputs)
