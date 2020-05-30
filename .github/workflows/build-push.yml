@@ -11,6 +11,7 @@ jobs:
       - name: Build & Push
         uses: docker/build-push-action@v1
         with:
+          dockerfile: docker/Dockerfile
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_TOKEN }}
           repository: grese/scad_tot
