@@ -1,4 +1,4 @@
-# scad_tot
+# scad_tot ![Build & Push Docker Image](https://github.com/grese/scad_tot/workflows/Build%20&%20Push%20Docker%20Image/badge.svg)
 
 [Safe-SCAD](https://www.york.ac.uk/assuring-autonomy/projects/safe-scad/) "TakeOverTime" neural network &amp; verification.
 
