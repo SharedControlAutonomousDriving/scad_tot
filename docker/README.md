@@ -16,20 +16,14 @@ Includes all features provided by the [grese/marabou](https://hub.docker.com/r/g
 
 ### Start a container
 
-**%** `docker run -it grese/scad_tot /bin/zsh`
+You can start the container using all of the normal docker command line options. Here are a couple of examples:
 
-### Saving & restoring container state
+**%** `docker run -p 9999:9999 grese/scad_tot`
 
-The following commands for saving/restoring container's state should be run from your host machine *(not from within the container)*.
+Copy the URL printed in the console, and access https://localhost:9999?token=TOKEN in your browser.
 
-#### Saving container state
+### Start a container with a mounted folder from host machine
 
-**%** `docker commit <CONTAINER_ID> my_saved_container`
+**%** `docker run -p 9999:9999 -v /path/to/local/folder:/home/marabou/work grese/scad_tot`
 
-#### Restoring saved container
-
-**%** `docker run -it my_saved_container /bin/zsh`
-
-The <CONTAINER_ID> will be the same as the container's hostname, which is shown in the terminal prompt. For example, the <CONTAINER_ID> of the screenshot below is 18819c1a35cb. The saved container's name (my_saved_container) can be whatever you want.
-
-![docker image](../../docs/img/terminal.png)
+Note: replace "/path/to/local/folder" with the folder you want to mount in the container
