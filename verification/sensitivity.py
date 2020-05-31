@@ -213,4 +213,6 @@ if __name__ == '__main__':
     if args.checkresults:
         logger.info(f'checking {"asym " if args.asym else ""} sensitivity results...')
         check_results = check_sensitivity(args.nnetpath, samples, results, asym=args.asym, outdir=args.outdir, timeout=args.timeout, verbose=args.verbose)
-        logger.info(f'sensitivity check results:\n{check_results}')
+        notok = [k for k,v in check_results.items() if ([i for i in v if any(i)])] if args.asym else [k for k,v in check_results.items() if any(v)]
+        logger.info(f'sensitivity check {"ok" if not notok else f"found counterexamples for {notok}"}')
+        if notok: logger.info(f'sensitivity check results {check_results}')

@@ -205,4 +205,7 @@ if __name__ == '__main__':
     if args.checkresults:
         logger.info(f'checking {"asym " if args.asym else ""} robustness results...')
         check_results = check_local_robustness(args.nnetpath, samples, results, asym=args.asym, outdir=args.outdir, timeout=args.timeout, verbose=args.verbose)
-        logger.info(f'local robustness check results:\n{check_results}')
+        # notok = [k for k,v in check_results.items() if [i for i in v if any(i)]] if args.asym else [k for k,v in check_results.items() if any(v)]
+        notok = [s for s,v in check_results.items() if any(v)] if args.asym else [s for s,v in check_results.items() if v]
+        logger.info(f'local robustness check {"ok" if not notok else f"found counterexamples for {notok}"}')
+        if notok: logger.info(f'local robustness check results {check_results}')
