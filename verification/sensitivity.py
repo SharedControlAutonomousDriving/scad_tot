@@ -37,7 +37,7 @@ def save_sensitivity_results_to_csv(results, samples, outdir):
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_counterexample(net, sample, x, epsilon, asym_side='', multiple=False, timeout=default_timeout, verbose=0):
+def find_counterexample(net, sample, x, epsilon, asym_side='', timeout=default_timeout, verbose=0):
     inputs, outputs = sample
     # create upper and lower bounds (in asym mode, zero out the other side's epsilon)
     l_epsilon = 0 if asym_side and asym_side == 'u' else epsilon
@@ -46,7 +46,7 @@ def find_counterexample(net, sample, x, epsilon, asym_side='', multiple=False, t
     ubs = inputs[0:x] + [inputs[x]+u_epsilon] + inputs[x+1:]
     # find y index of prediction
     y_idx = outputs.index(max(outputs))
-    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout, multiple=multiple)
+    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout)
 
 def find_epsilon_bounds(net, sample, x, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
     # count num places in decimal and mantissa
@@ -152,16 +152,16 @@ def test_sensitivity(nnet_path, samples, x_indexes=[], e_min=default_emin, e_max
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
-def check_sensitivity(nnet_path, samples, results, asym=False, multiple=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
-    def check_input_epsilon(net, sample, x, le, ue, asym=False, multiple=False):
+def check_sensitivity(nnet_path, samples, results, asym=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
+    def check_input_epsilon(net, sample, x, le, ue, asym=False):
         cexs = None
         if asym:
             cexs = (
-                find_counterexample(net, sample, x, le, asym_side='l', multiple=multiple, timeout=timeout, verbose=verbose),
-                find_counterexample(net, sample, x, ue, asym_side='u', multiple=multiple, timeout=timeout, verbose=verbose)
+                find_counterexample(net, sample, x, le, asym_side='l', timeout=timeout, verbose=verbose),
+                find_counterexample(net, sample, x, ue, asym_side='u', timeout=timeout, verbose=verbose)
                 )
         else:
-            cexs = find_counterexample(net, sample, x, ue, multiple=multiple, timeout=timeout, verbose=verbose)
+            cexs = find_counterexample(net, sample, x, ue, timeout=timeout, verbose=verbose)
         return cexs
 
     net = TOTNet(nnet_path)
@@ -171,7 +171,7 @@ def check_sensitivity(nnet_path, samples, results, asym=False, multiple=False, o
         le, ue = result[0]
         test_results[xid] = []
         for sample in samples:
-            counterexamples = check_input_epsilon(net, sample, x, le, ue, asym=asym, multiple=multiple)
+            counterexamples = check_input_epsilon(net, sample, x, le, ue, asym=asym)
             test_results[xid].append(counterexamples)
         n_cexs = len([c for c in test_results[xid] if c]) if not asym else len([c for c in test_results[xid] if c[0] or c[1]])
         if not n_cexs:

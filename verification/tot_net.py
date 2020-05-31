@@ -91,24 +91,20 @@ class TOTNet:
                 assignment[1].append(vals[self.get_output_var(i)])
         return assignment, stats
     
-    def find_counterexample(self, lbs, ubs, y, multiple=False, timeout=default_timeout):
+    def find_counterexample(self, lbs, ubs, y, inverse=False, timeout=default_timeout):
         assert(len(lbs) == self.get_num_inputs())
         assert(y < self.get_num_outputs())
-        other_ys = [oy for oy in range(self.get_num_outputs()) if oy != y]
-        counterexamples = []
-        for oy in other_ys:
+        y_idxs = [y] if inverse else [oy for oy in range(self.get_num_outputs()) if oy != y]
+        for y_idx in y_idxs:
             self.reset()
             self.set_lower_bounds(lbs)
             self.set_upper_bounds(ubs)
-            self.set_expected_category(oy)
+            self.set_expected_category(y_idx)
             result = self.solve(timeout=timeout)
             vals, _ = result
-            if len(vals[0]) > 0 or len(vals[1]) > 0:
-                if multiple:
-                    counterexamples.append(result)
-                else:
-                    return result
-        return None if not multiple else counterexamples
+            if any(vals):
+                return result
+        return None
 
     def check_prediction(self, inputs, y):
         pred = self.evaluate(inputs)

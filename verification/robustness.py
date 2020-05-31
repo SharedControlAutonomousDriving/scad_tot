@@ -32,7 +32,7 @@ def save_local_robustness_results_to_csv(results, samples, outdir):
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_counterexample(net, sample, epsilon, asym_side='', multiple=False, timeout=default_timeout, verbose=0):
+def find_counterexample(net, sample, epsilon, asym_side='', timeout=default_timeout, verbose=0):
     '''
     finds counterexample where classification changed for a given epsilon. None if no counterexamples found.
     '''
@@ -43,7 +43,7 @@ def find_counterexample(net, sample, epsilon, asym_side='', multiple=False, time
     lbs = [x-l_epsilon for x in inputs]
     ubs = [x+u_epsilon for x in inputs]
     y_idx = outputs.index(max(outputs))
-    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout, multiple=multiple)
+    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout)
 
 def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
     '''
@@ -147,16 +147,16 @@ def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=N
     if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
     return results
 
-def check_local_robustness(nnet_path, samples, results, asym=False, multiple=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
-    def check_epsilons(net, sample, le, ue, asym=False, multiple=False):
+def check_local_robustness(nnet_path, samples, results, asym=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
+    def check_epsilons(net, sample, le, ue, asym=False):
         cexs = []
         if asym:
             cexs = (
-                find_counterexample(net, sample, le, asym_side='l', verbose=verbose, multiple=multiple),
-                find_counterexample(net, sample, ue, asym_side='u', verbose=verbose, multiple=multiple)
+                find_counterexample(net, sample, le, asym_side='l', verbose=verbose),
+                find_counterexample(net, sample, ue, asym_side='u', verbose=verbose)
             )
         else:
-            cexs = find_counterexample(net, sample, ue, verbose=verbose, multiple=multiple)
+            cexs = find_counterexample(net, sample, ue, verbose=verbose)
         return cexs
     
     net = TOTNet(nnet_path)
@@ -164,7 +164,7 @@ def check_local_robustness(nnet_path, samples, results, asym=False, multiple=Fal
     le, ue = results[0]
     for s,sample in enumerate(samples):
         sid = f's{s}'
-        cexs = check_epsilons(net, sample, le, ue, asym=asym, multiple=multiple)
+        cexs = check_epsilons(net, sample, le, ue, asym=asym)
         check_results[sid] = cexs
     
     n_cexs = len([c for c in check_results.values() if c]) if not asym else len([c for c in check_results.values() if c[0] or c[1]])
