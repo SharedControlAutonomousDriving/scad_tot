@@ -32,7 +32,7 @@ def save_local_robustness_results_to_csv(results, samples, outdir):
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_counterexample(net, sample, epsilon, asym_side='', timeout=default_timeout, verbose=0):
+def find_counterexample(net, sample, epsilon, asym_side='', target_y=None, timeout=default_timeout, verbose=0):
     '''
     finds counterexample where classification changed for a given epsilon. None if no counterexamples found.
     '''
@@ -42,10 +42,10 @@ def find_counterexample(net, sample, epsilon, asym_side='', timeout=default_time
     # asym mode adjusts lower or upper side individually
     lbs = [x-l_epsilon for x in inputs]
     ubs = [x+u_epsilon for x in inputs]
-    y_idx = outputs.index(max(outputs))
-    return net.find_counterexample(lbs, ubs, y_idx, timeout=timeout)
+    y_idx = outputs.index(max(outputs)) if target_y is None else target_y
+    return net.find_counterexample(lbs, ubs, y_idx, inverse=(target_y is not None), timeout=timeout)
 
-def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
+def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', target_y=None, timeout=default_timeout, verbose=0):
     '''
     finds coarse lower and upper bounds for epsilon
     '''
@@ -59,7 +59,7 @@ def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', timeout
         epsilons = [round(e, dp+1) for e in np.arange(lb, ub, lb)]
         if verbose > 1: logger.info(f'searching {len(epsilons)} coarse {asym_side+"_" if asym_side else ""}epsilons b/t {epsilons[0]} and {epsilons[-1]}')
         for i,e in enumerate(epsilons):
-            counterexample = find_counterexample(net, sample, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
+            counterexample = find_counterexample(net, sample, e, asym_side=asym_side, target_y=target_y, timeout=timeout, verbose=verbose)
             if counterexample:
                 # return epsilon lower & upper bounds if counterexample was found
                 e_lb = epsilons[i-1] if i > 0 else round(e-(lb/10), dp+2)
@@ -67,7 +67,7 @@ def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', timeout
                 return (e_lb, e_ub)
     return (e_min, e_max)
 
-def find_epsilon(net, sample, e_min, e_max, e_prec, asym_side='', timeout=default_timeout, verbose=0):
+def find_epsilon(net, sample, e_min, e_max, e_prec, asym_side='', target_y=None, timeout=default_timeout, verbose=0):
     '''
     finds epsilon value within specified bounds by binary search at precision
     '''
@@ -78,21 +78,21 @@ def find_epsilon(net, sample, e_min, e_max, e_prec, asym_side='', timeout=defaul
     l = 0
     m = 0
     h = len(epsilons) - 1
-    cex_found = False
+    counterexample = None
     epsilon = None
     while l < h:
         m = (h + l) // 2
         e = epsilons[m]
-        counterexample = find_counterexample(net, sample, e, asym_side=asym_side, timeout=timeout, verbose=verbose)
-        if counterexample:
+        cex = find_counterexample(net, sample, e, asym_side=asym_side, target_y=target_y, timeout=timeout, verbose=verbose)
+        if cex:
             h = m - 1
-            cex_found = True
+            counterexample = cex
         else:
             l = m + 1
             epsilon = e
-    if cex_found:
-        return epsilon if epsilon is not None else round(e-e_prec, dplaces)
-    return 0
+    if counterexample:
+        return (epsilon, counterexample) if epsilon is not None else (round(e-e_prec, dplaces), counterexample)
+    return (0, (([], []), None))
 
 def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=None, asym=False, coarse_pass=True, save_results=False, save_samples=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
     if not e_prec:
@@ -117,11 +117,11 @@ def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=N
                 if verbose > 1: logger.info(f'{sid} upper epsilon coarse bounds: {u_ce_lb, u_ce_ub} ({ms_since_1970() - step_start}ms)')
             # find lower epsilon within coarse bounds
             step_start = ms_since_1970()
-            le = find_epsilon(net, sample, l_ce_lb, l_ce_ub, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
+            le,_ = find_epsilon(net, sample, l_ce_lb, l_ce_ub, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
             if verbose > 0: logger.info(f'{sid} lower epsilon: {le} ({ms_since_1970() - step_start}ms)')
             # find upper epsilon within coarse bounds
             step_start = ms_since_1970()
-            ue = find_epsilon(net, sample, u_ce_lb, u_ce_ub, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
+            ue,_ = find_epsilon(net, sample, u_ce_lb, u_ce_ub, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
             if verbose > 0: logger.info(f'{sid} upper epsilon: {ue} ({ms_since_1970() - step_start}ms)')
             epsilons.append((le, ue))
         else:
@@ -133,7 +133,7 @@ def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=N
                 if verbose > 1: logger.info(f'{sid} coarse epsilon bounds: {ce_lb, ce_ub} ({ms_since_1970() - step_start}ms)')
             # find epsilon within coarse bounds
             step_start = ms_since_1970()
-            epsilon = find_epsilon(net, sample, ce_lb, ce_ub, e_prec, timeout=timeout, verbose=verbose)
+            epsilon,_ = find_epsilon(net, sample, ce_lb, ce_ub, e_prec, timeout=timeout, verbose=verbose)
             if verbose > 0: logger.info(f'{sid} epsilon: {epsilon} ({ms_since_1970() - step_start}ms)')
             # update running min epislon
             epsilons.append((epsilon, epsilon))
@@ -173,6 +173,27 @@ def check_local_robustness(nnet_path, samples, results, asym=False, outdir=defau
     else:
         if verbose > 0: logger.info(f'counterexamples found for {n_cexs} samples {le, ue}\n{check_results}')
     return check_results
+
+def test_targeted_robustness(nnet_path, samples, y, target_y, s_epsilons=[], e_min=0.0001, e_max=100, e_prec=0.00001, asym=False, coarse_pass=True, timeout=0, verbose=0):
+    if s_epsilons:
+        assert(len(samples) == len(s_epsilons))
+    else:
+        s_epsilons = [e_min for _ in samples]
+    target_samples = {s:(i,o) for s,(i,o) in enumerate(samples) if o.index(1) == y}
+    epsilon_bounds = {s:(s_epsilons[s], e_max) for s in target_samples}
+    net = TOTNet(nnet_path)
+    results = {}
+    for s,sample in target_samples.items():
+        # inputs, outputs = sample
+        e_lb, e_ub = epsilon_bounds[s]
+        if coarse_pass:
+            step_start = ms_since_1970()
+            e_lb, e_ub = find_epsilon_bounds(net, sample, e_lb, e_ub, e_prec, target_y=target_y, timeout=timeout, verbose=verbose)
+            if verbose > 0: logger.info(f's{s} y{y}:y{target_y} coarse epsilon bounds {e_lb, e_ub} ({ms_since_1970() - step_start}ms)')
+        e, cex = find_epsilon(net, sample, e_lb, e_ub, e_prec, target_y=target_y, timeout=timeout, verbose=verbose)
+        if verbose > 0: logger.info(f's{s} y{y}:y{target_y} epsilon {e} ({ms_since_1970() - step_start}ms)')
+        results[s] = (e, cex)
+    return results
 
 if __name__ == '__main__':
     '''

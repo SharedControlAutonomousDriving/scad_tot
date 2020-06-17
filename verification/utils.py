@@ -100,9 +100,9 @@ class TOTUtils:
         return scikit_scaler.inverse_transform(scaled_values)[0]
 
     @staticmethod
-    def load_samples(csv_path, frac=1):
+    def load_csv(csv_path, frac=1):
         '''
-        loads a csv, and converts to a list of samples [([x0-xN], [y0..yM]), ([x0..xM], [y0..yM])]
+        loads a csv, and returns two dataframes (inputs and outputs)
 
         @param csv_path (string): path to csv file
         @frac (float): fraction of dataset to return (default=1.0)
@@ -110,9 +110,31 @@ class TOTUtils:
         df = pd.read_csv(csv_path, index_col=0)
         df = df.sample(frac=frac)
         output_cols = [f'TOT_{c}' for c in TOTUtils._categories]
-        outputs_df = df[output_cols]
-        inputs_df = df.drop(output_cols, axis=1)
-        return [(list(inputs_df.iloc[i]), list(outputs_df.iloc[i])) for i in range(df.shape[0])]
+        return df.drop(output_cols, axis=1), df[output_cols]
+
+    @staticmethod
+    def load_samples(csv_path, frac=1):
+        '''
+        loads a csv, and converts to a list of samples [([x0-xN], [y0..yM]), ([x0..xM], [y0..yM])]
+
+        @param csv_path (string): path to csv file
+        @frac (float): fraction of dataset to return (default=1.0)
+        '''
+        inputs_df, outputs_df = TOTUtils.load_csv(csv_path, frac=frac)
+        return [(list(inputs_df.iloc[i]), list(outputs_df.iloc[i])) for i in range(inputs_df.shape[0])]
+
+    @staticmethod
+    def group_samples(samples):
+        '''
+        groups samples by category. returns a list containing samples for each category.
+        '''
+        n_outputs = len(samples[0][1])
+        groups = [[] for i in range(n_outputs)]
+        for sample in samples:
+            _, outputs = sample
+            y = outputs.index(max(outputs))
+            groups[y].append(sample)
+        return groups
 
     @staticmethod
     def filter_samples(samples, nnet_path, incorrect=False):
