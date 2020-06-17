@@ -29,12 +29,12 @@ class LGKMeans:
         pass
 
     def fit(self, X, y, randinit=True):
-        n_inputs = X.shape[0]
-        assert(n_inputs == y.shape[0]) # X & y must have same number of items
-        assert(n_inputs == len(np.unique(X, axis=0))) # X must have no duplicates
-        remaining, regions = [(X, y)], []
+        X_count = X.shape[0]
+        assert(X_count == y.shape[0]) # X & y must have same number of items
+        assert(X_count == len(np.unique(X, axis=0))) # X must have no duplicates
+        logger.info(f'finding regions from |X|={X_count}')
         start = ms_since_1970()
-        logger.info(f'finding regions from |X|={X.shape[0]}')
+        remaining, regions = [(X, y)], []
         while len(remaining) > 0:
             X, y = remaining.pop(0)
             ics = LGKMeansUtils.get_initial_centroids(X, y, rand=randinit)
@@ -49,7 +49,7 @@ class LGKMeans:
                 else:
                     remaining.append((Xc, yc))
         # assert sum total of region sizes equals num rows in X
-        assert(n_inputs == sum([r.X.shape[0] for r in regions]))
+        assert(X_count == sum([r.X.shape[0] for r in regions]))
         logger.info(f'found {len(regions)} regions {logperf(start)}')
         self.__regions = regions
         return self
