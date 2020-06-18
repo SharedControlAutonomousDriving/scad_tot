@@ -10,16 +10,6 @@ default_outdir = './logs/clustering'
 logger = create_logger('clustering', logdir=default_outdir)
 logperf = lambda s: f'({ms_since_1970() - s}ms)'
 
-class LGKMeansRegion:
-    '''
-    Label Guided KMeans Region
-    represents a 'region' of a KMeans cluster which contains inputs of a single label
-    '''
-    def __init__(self, centroid, X, y):
-        assert(X.shape[0] == y.shape[0])
-        assert(len(np.unique(y, axis=0)) == 1)
-        self.centroid, self.X, self.y, self.category = centroid, X, y, y[0]
-
 class LGKMeans:
     '''
     Label Guided KMeans Clustering
@@ -56,6 +46,16 @@ class LGKMeans:
     
     def get_regions(self):
         return self.__regions
+
+class LGKMeansRegion:
+    '''
+    Label Guided KMeans Region
+    represents a 'region' of a KMeans cluster which contains inputs of a single label
+    '''
+    def __init__(self, centroid, X, y):
+        assert(X.shape[0] == y.shape[0])
+        assert(len(np.unique(y, axis=0)) == 1)
+        self.centroid, self.X, self.y, self.category = centroid, X, y, y[0]
 
 class LGKMeansUtils:
     @staticmethod
