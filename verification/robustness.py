@@ -195,6 +195,38 @@ def test_targeted_robustness(nnet_path, samples, y, target_y, s_epsilons=[], e_m
         results[s] = (e, cex)
     return results
 
+def verify_region(net, region, n_categories, eprec, rpad=1, verbose=0, timeout=0):
+    radius, centroid, n_features = region.radius, region.centroid, region.X.shape[1]
+    emax =  ((radius + rpad) / n_features)
+    sample = (centroid, [int(region.category==i) for i in range(n_categories)])
+    vepsilon, _ = find_epsilon(net, sample, eprec, emax, eprec, verbose=verbose, timeout=timeout)
+    vradius = (vepsilon if vepsilon > 0 else emax) * n_features
+    return (vradius, vepsilon)
+
+def verify_regions(nnet_path, lgkmc, nmin=100, eprec=0.0001, rpad=1, verbose=0, timeout=0):
+    n_categories = len(lgkmc.get_categories())
+    regions = [r for r in lgkmc.get_regions(sort=True) if r.n >= nmin]
+    nregions, vregions = len(regions), []
+    net = TOTNet(nnet_path)
+    for i,r in enumerate(regions):
+        vrad, veps = verify_region(net, r, n_categories, eprec, rpad=rpad, verbose=verbose, timeout=timeout)
+        if verbose > 0: logger.info(f'region {i} of {nregions} verified with r={vrad}, e={veps}')
+        density = r.n/vrad if vrad > 0 else r.n/eprec
+        vr = dict(centroid=r.centroid, radius=vrad, epsilon=veps, n=r.n, density=density, category=r.category, oradius=r.radius)
+        vregions.append(vr)
+    return vregions
+
+def save_verified_regions(vregions, outdir=default_outdir):
+    n_features = vregions[0]['centroid'].shape[0]
+    header = ','.join([f'cx{i}' for i in range(n_features)] + ['radius', 'epsilon', 'n', 'density', 'category', 'oradius'])
+    rows = []
+    for r in vregions:
+        rows.append(','.join([str(x) for x in r['centroid']] + [str(v) for v in (r['radius'], r['epsilon'], r['n'], r['density'], r['category'], r['oradius'])]))
+    outpath = os.path.join(outdir, 'vregions.csv')
+    with open(outpath, 'w') as f:
+        f.writelines('\n'.join([header] + rows))
+        logger.info(f'wrote verified regions to {outpath}')
+
 if __name__ == '__main__':
     '''
     Usage: python3 verification/robustness.py -n NNETPATH -d DATAPATH [-df FRAC -emin EMIN -emax EMAX -eprec EPREC -a -t TIMEOUT -sr -ss -sl -o OUTDIR -v V]

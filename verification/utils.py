@@ -31,6 +31,9 @@ def create_logger(name, level=logging.DEBUG, to_file=False, to_console=True, log
 def print_heading(text):
     print(('-'*40) + f'\n{text}\n')
 
+def tohex(r, g, b):
+    return '#%02x%02x%02x' % (int(r*255), int(g*255), int(b*255))
+
 class TOTSample:
     def __init__(self, inputs, outputs, id=None):
         self.inputs = inputs
@@ -51,15 +54,23 @@ class TOTUtils:
 
     @staticmethod
     def get_feature_name(input_x):
-        return TOTUtils._features[input_x]
+        return TOTUtils.get_feature_names()[input_x]
     
     @staticmethod
     def get_feature_index(feature_name):
-        return TOTUtils._features.index(feature_name)
+        return TOTUtils.get_feature_names().index(feature_name)
+    
+    @staticmethod
+    def get_category_names():
+        return list(TOTUtils._categories)
+
+    @staticmethod
+    def get_category_name(y_index):
+        return TOTUtils.get_category_names()[y_index]
     
     @staticmethod
     def get_category_index(label):
-        return TOTUtils._categories.index(label)
+        return TOTUtils.get_category_names().index(label)
     
     @staticmethod
     def get_majority_category_index(output_sample):
