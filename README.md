@@ -25,3 +25,7 @@ This option installs the project natively on your system. Using a `venv` is reco
 Run the following command to download the dataset.
 
 **%** `./scripts/download_data.sh`
+
+## Run Verification
+
+

@@ -52,10 +52,10 @@ class TOTNet:
         variable = self.get_input_var(x_index)
         self.network.setUpperBound(variable, scaled_value)
     
-    def set_expected_category(self, y_index):
+    def set_expected_category(self, y_index, allowed_misclassifications=[]):
         n_outputs = self.get_num_outputs()
         assert(y_index < n_outputs)
-        other_ys = [y for y in range(n_outputs) if y != y_index]
+        other_ys = [y for y in range(n_outputs) if (y != y_index) and (y not in allowed_misclassifications)]
         for other_y in other_ys:
             eq = MarabouUtils.Equation(EquationType=MarabouCore.Equation.LE)
             eq.addAddend(1, self.get_output_var(other_y))
@@ -80,8 +80,8 @@ class TOTNet:
     def get_bounds(self):
         return self.get_lower_bounds(), self.get_upper_bounds()
 
-    def solve(self, timeout=default_timeout):
-        options = Marabou.createOptions(timeoutInSeconds=timeout, verbosity=self.__marabou_verbosity)
+    def solve(self, timeout=default_timeout, dnc=False):
+        options = Marabou.createOptions(timeoutInSeconds=timeout, verbosity=self.__marabou_verbosity, dnc=dnc)
         vals, stats = self.network.solve(verbose=bool(self.__marabou_verbosity), options=options)
         assignment = ([], [])
         if len(vals) > 0:
@@ -91,7 +91,7 @@ class TOTNet:
                 assignment[1].append(vals[self.get_output_var(i)])
         return assignment, stats
     
-    def find_counterexample(self, lbs, ubs, y, inverse=False, timeout=default_timeout):
+    def find_counterexample(self, lbs, ubs, y, allowed_misclassifications=[], inverse=False, timeout=default_timeout):
         assert(len(lbs) == self.get_num_inputs())
         assert(y < self.get_num_outputs())
         y_idxs = [y] if inverse else [oy for oy in range(self.get_num_outputs()) if oy != y]
@@ -99,9 +99,12 @@ class TOTNet:
             self.reset()
             self.set_lower_bounds(lbs)
             self.set_upper_bounds(ubs)
-            self.set_expected_category(y_idx)
+            self.set_expected_category(y_idx, allowed_misclassifications=allowed_misclassifications)
             result = self.solve(timeout=timeout)
-            vals, _ = result
+            vals, stats = result
+            # TODO: handle stats.hasTimedOut case
+            # if stats.hasTimedOut:
+            #     return 'TIMED_OUT'
             if any(vals):
                 return result
         return None
@@ -112,8 +115,8 @@ class TOTNet:
         pred_idxs = [i for i,v in enumerate(pred) if v == pred_val]
         return len(pred_idxs) == 1 and pred_idxs[0] == y
 
-    def evaluate(self, input_vals):
-        options = Marabou.createOptions(verbosity=bool(self.__marabou_verbosity))
+    def evaluate(self, input_vals, dnc=False):
+        options = Marabou.createOptions(verbosity=bool(self.__marabou_verbosity), dnc=dnc)
         return self.network.evaluate([input_vals], options=options)[0]
 
     def reset(self):

@@ -32,7 +32,7 @@ def save_local_robustness_results_to_csv(results, samples, outdir):
         f.writelines(details_lines)
         logger.info(f'wrote detils to {details_file}')
 
-def find_counterexample(net, sample, epsilon, asym_side='', target_y=None, timeout=default_timeout, verbose=0):
+def find_counterexample(net, sample, epsilon, asym_side='', target_y=None, allowed_misclassifications=[], timeout=default_timeout, verbose=0):
     '''
     finds counterexample where classification changed for a given epsilon. None if no counterexamples found.
     '''
@@ -43,7 +43,7 @@ def find_counterexample(net, sample, epsilon, asym_side='', target_y=None, timeo
     lbs = [x-l_epsilon for x in inputs]
     ubs = [x+u_epsilon for x in inputs]
     y_idx = outputs.index(max(outputs)) if target_y is None else target_y
-    return net.find_counterexample(lbs, ubs, y_idx, inverse=(target_y is not None), timeout=timeout)
+    return net.find_counterexample(lbs, ubs, y_idx, inverse=(target_y is not None), allowed_misclassifications=allowed_misclassifications, timeout=timeout)
 
 def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', target_y=None, timeout=default_timeout, verbose=0):
     '''
@@ -67,7 +67,7 @@ def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', target_
                 return (e_lb, e_ub)
     return (e_min, e_max)
 
-def find_epsilon(net, sample, e_min, e_max, e_prec, asym_side='', target_y=None, timeout=default_timeout, verbose=0):
+def find_epsilon(net, sample, e_min, e_max, e_prec, asym_side='', target_y=None, allowed_misclassifications=[], timeout=default_timeout, verbose=0):
     '''
     finds epsilon value within specified bounds by binary search at precision
     '''
@@ -83,7 +83,7 @@ def find_epsilon(net, sample, e_min, e_max, e_prec, asym_side='', target_y=None,
     while l < h:
         m = (h + l) // 2
         e = epsilons[m]
-        cex = find_counterexample(net, sample, e, asym_side=asym_side, target_y=target_y, timeout=timeout, verbose=verbose)
+        cex = find_counterexample(net, sample, e, asym_side=asym_side, target_y=target_y, timeout=timeout, verbose=verbose, allowed_misclassifications=allowed_misclassifications)
         if cex:
             h = m - 1
             counterexample = cex
@@ -199,7 +199,8 @@ def verify_region(net, region, n_categories, eprec, rpad=1, verbose=0, timeout=0
     radius, centroid, n_features = region.radius, region.centroid, region.X.shape[1]
     emax =  ((radius + rpad) / n_features)
     sample = (centroid, [int(region.category==i) for i in range(n_categories)])
-    vepsilon, _ = find_epsilon(net, sample, eprec, emax, eprec, verbose=verbose, timeout=timeout)
+    allowed_misclassifications = region.allowed_misclassifications if hasattr(region, 'allowed_misclassifications') else []
+    vepsilon, _ = find_epsilon(net, sample, eprec, emax, eprec, allowed_misclassifications=allowed_misclassifications, verbose=verbose, timeout=timeout)
     vradius = (vepsilon if vepsilon > 0 else emax) * n_features
     return (vradius, vepsilon)
 
