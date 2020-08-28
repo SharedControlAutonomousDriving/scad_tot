@@ -204,9 +204,7 @@ def verify_region(net, region, n_categories, eprec, rpad=1, verbose=0, timeout=0
     vradius = (vepsilon if vepsilon > 0 else emax) * n_features
     return (vradius, vepsilon)
 
-def verify_regions(nnet_path, lgkmc, nmin=100, eprec=0.0001, rpad=1, verbose=0, timeout=0):
-    n_categories = len(lgkmc.get_categories())
-    regions = [r for r in lgkmc.get_regions(sort=True) if r.n >= nmin]
+def verify_regions(nnet_path, regions, n_categories, nmin=100, eprec=0.0001, rpad=1, verbose=0, timeout=0):
     nregions, vregions = len(regions), []
     net = TOTNet(nnet_path)
     for i,r in enumerate(regions):

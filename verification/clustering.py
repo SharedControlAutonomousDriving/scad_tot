@@ -201,7 +201,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--noutputs', required=True)
     parser.add_argument('-i', '--initcentroid', default='rand', nargs='?', choices=init_centroid_choices)
     parser.add_argument('-o', '--outdir', default=default_outdir)
-    parser.add_argument('-p', '--plot', action='store_true')
+    # parser.add_argument('-p', '--plot', action='store_true')
     parser.add_argument('-sr', '--saveregions', action='store_true')
     parser.add_argument('-sl', '--savelogs', action='store_true')
     parser.add_argument('-v', '--verbosity', type=int, default=0)

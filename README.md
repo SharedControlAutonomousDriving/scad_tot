@@ -26,6 +26,20 @@ Run the following command to download the dataset.
 
 **%** `./scripts/download_data.sh`
 
-## Run Verification
+## Running Verification
 
+### Robustness
 
+* To run in a jupyter notebook, see `./verification/robustness.ipynb`
+* To run from command line, see `./scripts/robustness.sh` and `./scripts/robustness_asym.sh`
+  * View CLI options with `./verification/robustness.py --help`
+
+### Sensitivity
+
+* To run in a jupyter notebook, see `./verification/sensitivity.ipynb`
+* To run from command line, see `./scripts/sensitivity.sh` and `./scripts/sensitivity_asym.sh`
+  * View CLI options with `./verification/sensitivity.py --help`
+
+### Generating & Verifying Regions
+
+* To run in a jupyter notebook, see `./verification/clustering.ipynb`
