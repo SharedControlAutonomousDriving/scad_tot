@@ -1,0 +1,16 @@
+name: Manual Trigger
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build & Push
+        uses: docker/build-push-action@v1
+        with:
+            dockerfile: docker/Dockerfile
+            username: ${{ secrets.DOCKER_USER }}
+            password: ${{ secrets.DOCKER_TOKEN }}
+            repository: grese/scad_tot
+            tags: latest
