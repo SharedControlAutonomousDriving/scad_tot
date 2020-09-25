@@ -5,6 +5,7 @@ import numpy as np
 from argparse import ArgumentParser
 from utils import create_logger, count_decimal_places, ms_since_1970, TOTUtils
 from tot_net import TOTNet
+from scipy.spatial import distance
 
 default_outdir = './logs/robustness'
 default_emin = 0.0001
@@ -16,11 +17,19 @@ def save_local_robustness_results_to_csv(results, samples, outdir):
     '''
     saves local robustness summary and detailed results in csv format.
     '''
+    n_inputs, n_outputs = len(samples[0][0]), len(samples[0][1])
+
     summary_lines = ['leps,ueps\n']
-    details_lines = ['s,leps,ueps,spred\n']
+    details_lines = [
+        's,leps,ueps,spred,' + 
+        ','.join([f'cex_x{x}' for x in range(n_inputs)] + [f'cex_y{y}' for y in range(n_outputs)]) +
+        '\n']
     summary, details = results
     summary_lines.append(','.join([str(summary[0]), str(summary[1])])+'\n')
-    details_lines.extend([','.join([str(s), str(detail[0]), str(detail[1]), str(samples[s][1].index(max(samples[s][1])))])+'\n' for s,detail in enumerate(details)])
+    for s,detail in enumerate(details):
+        leps, ueps, spred, cex = detail[0], detail[1], samples[s][1].index(max(samples[s][1])), detail[2]
+        cex = cex[0] if cex else (['' for i in range(n_inputs)], ['' for i in range(n_outputs)])
+        details_lines.append(','.join([str(s), str(leps), str(ueps), str(spred)] + [str(x) for x in cex[0]] + [str(y) for y in cex[1]]) + '\n')
     summary_file = os.path.join(outdir, 'local_summary.csv')
     details_file = os.path.join(outdir, 'local_details.csv')
     if not os.path.exists(outdir):
@@ -117,13 +126,13 @@ def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=N
                 if verbose > 1: logger.info(f'{sid} upper epsilon coarse bounds: {u_ce_lb, u_ce_ub} ({ms_since_1970() - step_start}ms)')
             # find lower epsilon within coarse bounds
             step_start = ms_since_1970()
-            le,_ = find_epsilon(net, sample, l_ce_lb, l_ce_ub, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
+            le, counterexample = find_epsilon(net, sample, l_ce_lb, l_ce_ub, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
             if verbose > 0: logger.info(f'{sid} lower epsilon: {le} ({ms_since_1970() - step_start}ms)')
             # find upper epsilon within coarse bounds
             step_start = ms_since_1970()
-            ue,_ = find_epsilon(net, sample, u_ce_lb, u_ce_ub, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
+            ue, counterexample = find_epsilon(net, sample, u_ce_lb, u_ce_ub, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
             if verbose > 0: logger.info(f'{sid} upper epsilon: {ue} ({ms_since_1970() - step_start}ms)')
-            epsilons.append((le, ue))
+            epsilons.append((le, ue, counterexample))
         else:
             ce_lb, ce_ub = e_min, e_max
             if coarse_pass:
@@ -133,13 +142,13 @@ def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=N
                 if verbose > 1: logger.info(f'{sid} coarse epsilon bounds: {ce_lb, ce_ub} ({ms_since_1970() - step_start}ms)')
             # find epsilon within coarse bounds
             step_start = ms_since_1970()
-            epsilon,_ = find_epsilon(net, sample, ce_lb, ce_ub, e_prec, timeout=timeout, verbose=verbose)
+            epsilon, counterexample = find_epsilon(net, sample, ce_lb, ce_ub, e_prec, timeout=timeout, verbose=verbose)
             if verbose > 0: logger.info(f'{sid} epsilon: {epsilon} ({ms_since_1970() - step_start}ms)')
             # update running min epislon
-            epsilons.append((epsilon, epsilon))
+            epsilons.append((epsilon, epsilon, counterexample))
     # save and return test results
-    leps = [le for le,_ in epsilons if le != 0]
-    ueps = [ue for _,ue in epsilons if ue != 0]
+    leps = [le for le,_,_ in epsilons if le != 0]
+    ueps = [ue for _,ue,_ in epsilons if ue != 0]
     summary = (-min(leps if leps else [0]), min(ueps if ueps else [0]))
     results = (summary, epsilons)
     logger.info(('asymm ' if asym else '') + f'local robustness: {summary} ({ms_since_1970() - start}ms)')
@@ -200,18 +209,19 @@ def verify_region(net, region, n_categories, eprec, rpad=1, verbose=0, timeout=0
     emax =  ((radius + rpad) / n_features)
     sample = (centroid, [int(region.category==i) for i in range(n_categories)])
     allowed_misclassifications = region.allowed_misclassifications if hasattr(region, 'allowed_misclassifications') else []
-    vepsilon, _ = find_epsilon(net, sample, eprec, emax, eprec, allowed_misclassifications=allowed_misclassifications, verbose=verbose, timeout=timeout)
-    vradius = (vepsilon if vepsilon > 0 else emax) * n_features
-    return (vradius, vepsilon)
+    vepsilon, cex = find_epsilon(net, sample, eprec, emax, eprec, allowed_misclassifications=allowed_misclassifications, verbose=verbose, timeout=timeout)
+    # vradius = (vepsilon if vepsilon > 0 else emax) * n_features
+    vradius = distance.euclidean(centroid + vepsilon, centroid)
+    return (vradius, vepsilon, cex)
 
 def verify_regions(nnet_path, regions, n_categories, nmin=100, eprec=0.0001, rpad=1, verbose=0, timeout=0):
     nregions, vregions = len(regions), []
     net = TOTNet(nnet_path)
     for i,r in enumerate(regions):
-        vrad, veps = verify_region(net, r, n_categories, eprec, rpad=rpad, verbose=verbose, timeout=timeout)
+        vrad, veps, cex = verify_region(net, r, n_categories, eprec, rpad=rpad, verbose=verbose, timeout=timeout)
         if verbose > 0: logger.info(f'region {i} of {nregions} verified with r={vrad}, e={veps}')
         density = r.n/vrad if vrad > 0 else r.n/eprec
-        vr = dict(centroid=r.centroid, radius=vrad, epsilon=veps, n=r.n, density=density, category=r.category, oradius=r.radius)
+        vr = dict(centroid=r.centroid, radius=vrad, epsilon=veps, n=r.n, density=density, category=r.category, oradius=r.radius, counterexample=cex)
         vregions.append(vr)
     return vregions
 
