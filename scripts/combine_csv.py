@@ -15,10 +15,11 @@ def combine_csv_files(infiles, outfile, add_ids=False):
             else:
                 assert lines[0] == header, 'header rows must match in csv files'
             rows.extend(lines[1:])
-            print(len(lines[1:]), len(rows))
     if add_ids:
         header = f'id,{header}'
         rows = [f'{i},{r}' for i,r in enumerate(rows)]
+    # add new line to any rows that don't end in one.
+    rows = [r if ord(r[-1]) == 10 else f'{r}\n' for r in rows]
     with open(outfile, 'w') as f:
         f.writelines(''.join([header] + rows))
 
