@@ -9,7 +9,7 @@ CMU group's repository for "TakeOverTime" neural network &amp; verification. Aff
 
 ## Installation
 
-You have two options here. *Option 1* is to install the project natively, which is recommended for most developers. *Option 2* is to use the docker image, which is mostly intended for running the project in the cloud, however could potentially be used for local development. Installing locally is probably the most comfortable development experience for most developers that aren't familiar with Docker because containers are intended to be ephemeral. Choose whichever option you prefer.
+*Option 1* is to install the project natively, which is recommended for most developers. *Option 2* is to use the docker image, which is mostly intended for running the project in the cloud, however could potentially be used for local development. Installing locally is probably the most comfortable development experience for most developers that aren't familiar with Docker because containers are intended to be ephemeral. Choose whichever option you prefer.
 
 ### Option 1: Native Install
 
