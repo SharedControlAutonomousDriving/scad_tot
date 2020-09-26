@@ -10,15 +10,15 @@
 
 ## Installation
 
-You have two options here. *Option 1* is to use the docker image. *Option 2* is to install the project natively. Running [the docker image](https://hub.docker.com/r/grese/scad_tot) will be the simplest way to run the project for many users. However, Docker containers are intended to be ephemeral, so you may want to consider the native install if you're going to be developing frequently. Choose whichever option you prefer.
+You have two options here. *Option 1* is to install the project natively, which is recommended for most developers. *Option 2* is to use the docker image, which is mostly intended for running the project in the cloud, however could potentially be used for local development. Installing locally is probably the most comfortable development experience for most developers that aren't familiar with Docker because containers are intended to be ephemeral. Choose whichever option you prefer though :).
 
-### Option 1: Docker Image
-
-This option runs the project from within a docker container. It is the quickest way to get started. Instructions for this method can be found here: [Docker Installation Instructions](./docs/DOCKER_INSTALL.md)
-
-### Option 2: Native Install
+### Option 1: Native Install
 
 This option installs the project natively on your system. Using a `venv` is recommended, but not required. Detailed instructions for this option can be found here: [Native Installation Instructions](./docs/NATIVE_INSTALL.md).
+
+### Option 2: Docker Image
+
+This option runs the project from within a docker container. It is the quickest way to get started. Instructions for this method can be found here: [Docker Installation Instructions](./docs/DOCKER_INSTALL.md)
 
 ## Download Dataset
 
