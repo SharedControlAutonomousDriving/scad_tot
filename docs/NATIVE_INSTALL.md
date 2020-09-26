@@ -1,6 +1,6 @@
 # Native Installation
 
-To install the project locally on your system (instead of using the Docker image), follow the instructions in this document.
+To install the project locally on your system, follow the instructions in this document.
 
 ## Project Installation
 
@@ -8,7 +8,7 @@ This section downloads the project, sets up your environment, and installs pytho
 
 ### Download project
 
-* **%** `git clone https://github.com/grese/scad_tot.git`
+* **%** `git clone git@github.com:SharedControlAutonomousDriving/scad_tot.git`
 * **%** `cd scad_tot`
 
 ### Create a virtual environment (recommended)
@@ -36,9 +36,10 @@ To build marabou, `cmake` and `boost` are required. According to Marabou's docum
 ### Marabou Install
 
 * Download: **%** `git clone https://github.com/NeuralNetworkVerification/Marabou.git`
-* Decompress: **%** `unzip marabou.zip && mv Marabou-master .marabou && rm marabou.zip`
-* Create build folder: **%** `cd .marabou && mkdir build && cd build`
+* Move marabou: **%** `mv Marabou .marabou`
+* Create build folder: **%** `mkdir .marabou/build && cd .marabou/build`
 * Configure: **%** `cmake .. -DBUILD_PYTHON=ON`
+  * If you see an error saying: ['Imported target "openblas" includes non-existent path'](https://github.com/NeuralNetworkVerification/Marabou/issues/380), run `rm -r ../tools/OpenBLAS-0.3.9`, and then re-run `cmake .. -DBUILD_PYTHON=ON`.
 * Build: **%** `cmake --build .`
 * Go back to project root: **%** `cd ../../`
 
@@ -46,10 +47,10 @@ To build marabou, `cmake` and `boost` are required. According to Marabou's docum
 
 *NOTE:* If you're using a virtual environment (venv) and already ran `./scripts/setup_venv.sh`, then you can skip this section because the paths will be automatically set when you activate the venv and restored when you deactivate.
 
-Otherwise, the `PYTHONPATH` and `JUPYTER_PATH` environment variables need to be updated to contain the path to Marabou. Either run the following commands or add them to your `.bashrc` or `.zshrc` file. Replace <PROJECT_ROOT> with the path to this project's root folder.
+Otherwise, the `PYTHONPATH` and `JUPYTER_PATH` environment variables need to be updated to contain the path to Marabou. Replace <PROJECT_ROOT> with the path to this project's root folder.
 
 ```zsh
-export MARABOU_PATH=<PROJECT_ROOT>
+export MARABOU_PATH=<PROJECT_ROOT>/.marabou
 export PYTHONPATH=$PYTHONPATH:$MARABOU_PATH
 export JUPYTER_PATH=$JUPYTER_PATH:$MARABOU_PATH
 ```
