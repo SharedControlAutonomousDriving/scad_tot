@@ -1,36 +1,51 @@
 #!venv/bin/python3
 
+"""
+combine_csv.py
+
+Combines CSV files into a single CSV, and handles headers
+
+Examples:
+help
+./scripts/combine_csv.py -h
+
+combine a.csv and b.csv into ab.csv
+./scripts/combine_csv.py -f a.csv b.csv -o ab.csv
+
+combine a.csv and b.csv (without header rows) into ab.csv
+./scripts/combine_csv.py -f a.csv b.csv -o ab.csv -nh
+
+combine a.csv and b.csv into ab.csv, and add 'id' column
+./scripts/combine_csv.py -f a.csv b.csv -o ab.csv -id
+"""
+
 import sys, os
 from argparse import ArgumentParser
 
-def combine_csv_files(infiles, outfile, add_ids=False):
-    assert infiles, 'there must be at least one file'
-    header = None
-    rows = []
-    for infile in infiles:
+def combine_csv_files(infiles, outfile, noheader=False, idcol=False):
+    assert infiles, 'there must be at least one input file'
+    header, rows = None, []
+    for i, infile in enumerate(infiles):
         with open(infile, 'r') as f:
             lines = f.readlines()
-            if header is None:
+            if i == 0:
                 header = lines[0]
-            else:
+            elif not noheader:
                 assert lines[0] == header, 'header rows must match in csv files'
-            rows.extend(lines[1:])
-    if add_ids:
+            rows.extend(lines[0 if noheader else 1:])
+    if idcol:
         header = f'id,{header}'
         rows = [f'{i},{r}' for i,r in enumerate(rows)]
     # add new line to any rows that don't end in one.
     rows = [r if ord(r[-1]) == 10 else f'{r}\n' for r in rows]
     with open(outfile, 'w') as f:
-        f.writelines(''.join([header] + rows))
+        f.writelines(''.join(([header] if not noheader else []) + rows))
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('-f', '--infile', nargs='+', required=True)
-    parser.add_argument('-o', '--outfile', default='./combined.csv')
+    parser.add_argument('-f', '--infile', nargs='+', required=True, help='input csv files to combine')
+    parser.add_argument('-o', '--outfile', default='./combined.csv', help='specify output filename')
+    parser.add_argument('-nh', '--noheader', action='store_true', help='use if input csv does not have header row')
+    parser.add_argument('-id', '--idcol', action='store_true', help='add id column to combined csv')
     args = parser.parse_args()
-    combine_csv_files(args.infile, args.outfile)
-
-# printing args for combining chunked region files:
-# '-f ' + ' '.join([f'../artifacts/test/vr_{i*100}_{((i+1)*100)-1}/vregions.csv' for i in range(20)])
-
-# ./scripts/combine_csv.py -f ./artifacts/test/vr_0_99/vregions.csv ./artifacts/test/vr_100_199/vregions.csv ./artifacts/test/vr_200_299/vregions.csv ./artifacts/test/vr_300_399/vregions.csv ./artifacts/test/vr_400_499/vregions.csv ./artifacts/test/vr_500_599/vregions.csv ./artifacts/test/vr_600_699/vregions.csv ./artifacts/test/vr_700_799/vregions.csv ./artifacts/test/vr_800_899/vregions.csv ./artifacts/test/vr_900_999/vregions.csv ./artifacts/test/vr_1000_1099/vregions.csv ./artifacts/test/vr_1100_1199/vregions.csv ./artifacts/test/vr_1200_1299/vregions.csv ./artifacts/test/vr_1300_1399/vregions.csv ./artifacts/test/vr_1400_1499/vregions.csv ./artifacts/test/vr_1500_1599/vregions.csv ./artifacts/test/vr_1600_1699/vregions.csv ./artifacts/test/vr_1700_1799/vregions.csv ./artifacts/test/vr_1800_1899/vregions.csv ./artifacts/test/vr_1900_1999/vregions.csv -o ./artifacts/test/verified_regions.csv
+    combine_csv_files(args.infile, args.outfile, noheader=args.noheader, idcol=args.idcol)
