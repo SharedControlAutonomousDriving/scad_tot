@@ -8,22 +8,34 @@ Includes all features provided by the [grese/marabou](https://hub.docker.com/r/g
 
 * Includes [scad_tot](https://github.com/grese/scad_tot) code
 
-## Usage
+## Usage Examples
 
-### Get the image
+The examples below show some different ways to run the image. Feel free to mix and match the different CLI flags as needed.
 
-**%** `docker pull grese/scad_tot`
+### Start the Jupyter Lab
 
-### Start a container
+You can use the Jupyter Lab web app as shown below.
 
-You can start the container using all of the normal docker command line options. Here are a couple of examples:
+`docker run -p 9999:9999 grese/marabou`
 
-**%** `docker run -p 9999:9999 grese/scad_tot`
+### Start the Jupyter Lab with a persistent local folder
 
-Copy the URL printed in the console, and access https://localhost:9999?token=TOKEN in your browser.
+You can also use the Jupyter Lab web app with a mounted persistent folder from your local machine in the container. This one is arguably the best for local development if you want to save your work.
 
-### Start a container with a mounted folder from host machine
+`docker run -p 9999:9999 -v "$PWD":/home/marabou/work grese/marabou`
 
-**%** `docker run -p 9999:9999 -v /path/to/local/folder:/home/marabou/work grese/scad_tot`
+### Run as a daemon
 
-Note: replace "/path/to/local/folder" with the folder you want to mount in the container
+You can use the `-d` flag to keep the container running in the background as a daemon.
+
+`docker run -d -p 9999:9999 grese/marabou`
+
+### Run image from command line
+
+Another option is to use the `-i` option to interact with the image from the command line in "interactive mode".
+
+`docker run -i -p 9999:9999 /bin/zsh`
+
+### Other options
+
+Since this image is build on [grese/marabou](https://github.com/grese/marabou-docker), you can also use the additional command line options listed there. It has additional examples for things like providing a persistent SSL certificate, setting a password for the jupyter lab, etc.
