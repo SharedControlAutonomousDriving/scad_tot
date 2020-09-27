@@ -22,6 +22,8 @@ Using a virtual environment is recommended. The commands below will create and s
 * **%** `deactivate`
 * **%** `source venv/bin/activate`
 
+Now that you have your virtual environment setup, you will also need to configure your IDE to point the Python Interpreter and Jupyter Server to your virtual environment. See the [IDE setup doc](./IDE_SETUP.md) to learn how to do this.
+
 ## Marabou Installation
 
 To be able to run the verification code, you'll also need to install the [Marabou Neural Network Verification Framework](https://github.com/NeuralNetworkVerification/Marabou.git). You can skip these steps if you already have Marabou installed on your system.
