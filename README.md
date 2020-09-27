@@ -17,7 +17,7 @@ This option installs the project natively on your system. Using a `venv` is reco
 
 ### Option 2: Docker Image
 
-This option runs the project from within a docker container. It is really intended for running the project in the cloud, however you could also use it for local development if you like working in docker images. Instructions for this method can be found here: [Docker Installation Instructions](./docs/DOCKER_INSTALL.md).
+This option runs the project from within a docker container. It is really intended for running the project in the cloud, however you could also use it for local development if you like working in docker containers. Instructions for this method can be found here: [Docker Installation Instructions](./docs/DOCKER_INSTALL.md).
 
 ## Download Dataset
 
