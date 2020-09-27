@@ -28,16 +28,18 @@ To be able to run the verification code, you'll also need to install the [Marabo
 
 ### Marabou Prerequisites
 
-To build marabou, `cmake` >= 3.12 and `boost` are required. According to Marabou's documentation, it is supposed to install `boost` automatically during the build, but it ran into issues on OS X, so I installed `boost` manually. Instructions for installing Marabou's prerequisites on OS X are below:
+To compile marabou, `cmake` **>= 3.12** is required. Please see the appropriate section below to install the Marabou's prerequisites on OS X or Linux.
 
 #### OS X (using Homebrew)
+
+Run the following commands to install Marabou's prereqs on OS X. According to Marabou's documentation, `boost` should be installed automatically, but I ran into issues so I installed it manually.
 
 * **%** `brew install cmake`
 * **%** `brew install boost`
 
 #### On Linux
 
-On linux you just need to install `cmake` >= v3.12. There are so many distros and ways to manage packages, its hard to provide one solution for all of them. However, one pretty good solution is to install it via pip as shown below. If that doesn't work for you, check out [cmake's install page](https://cmake.org/install/).
+On Linux you just need to install `cmake`. Its hard to provide one solution for all Linux distros & package managers, however one good solution is to install it via pip as shown below. If that doesn't work for you, check out [cmake's install page](https://cmake.org/install/) to compile it from source.
 
 * **%** `sudo pip install cmake --upgrade`
 
