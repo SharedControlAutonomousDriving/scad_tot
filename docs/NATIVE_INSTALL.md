@@ -28,17 +28,27 @@ To be able to run the verification code, you'll also need to install the [Marabo
 
 ### Marabou Prerequisites
 
-To build marabou, `cmake` and `boost` are required. According to Marabou's documentation, it is supposed to install `boost` automatically during the build, but it ran into issues on my machine, so I installed `boost` manually. These commands use `Homebrew`, but you can install them however you like.
+To build marabou, `cmake` >= 3.12 and `boost` are required. According to Marabou's documentation, it is supposed to install `boost` automatically during the build, but it ran into issues on OS X, so I installed `boost` manually. Instructions for installing Marabou's prerequisites on OS X are below:
+
+#### OS X (using Homebrew)
 
 * **%** `brew install cmake`
 * **%** `brew install boost`
+
+#### On Linux
+
+On linux you just need to install `cmake` >= v3.12. There are so many distros and ways to manage packages, its hard to provide one solution for all of them. However, one pretty good solution is to install it via pip as shown below. If that doesn't work for you, check out [cmake's install page](https://cmake.org/install/).
+
+* **%** `sudo pip install cmake --upgrade`
 
 ### Marabou Install
 
 * Download: **%** `git clone https://github.com/NeuralNetworkVerification/Marabou.git`
 * Setup marabou build folder: **%** `mv Marabou .marabou && mkdir .marabou/build && cd .marabou/build`
 * Configure: **%** `cmake .. -DBUILD_PYTHON=ON`
-  * If you hit an error saying: ['Imported target "openblas" includes non-existent path'](https://github.com/NeuralNetworkVerification/Marabou/issues/380), run `rm -r ../tools/OpenBLAS-0.3.9`, and then re-run `cmake .. -DBUILD_PYTHON=ON`.
+  * **IF** you hit an error saying: ['Imported target "openblas" includes non-existent path'](https://github.com/NeuralNetworkVerification/Marabou/issues/380), here is a workaround:
+    * run `rm -r ../tools/OpenBLAS-0.3.9`
+    * then re-run `cmake .. -DBUILD_PYTHON=ON`
   * NOTE: You may see a ton of warnings. The warnings are OK. Errors are not :)
 * Build: **%** `cmake --build .`
 * Go back to project root: **%** `cd ../../`
