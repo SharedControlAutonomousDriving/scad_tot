@@ -28,7 +28,7 @@ def save_local_robustness_results_to_csv(results, samples, outdir):
     summary_lines.append(','.join([str(summary[0]), str(summary[1])])+'\n')
     for s,detail in enumerate(details):
         leps, ueps, spred, cex = detail[0], detail[1], samples[s][1].index(max(samples[s][1])), detail[2]
-        cex = cex[0] if cex else (['' for i in range(n_inputs)], ['' for i in range(n_outputs)])
+        cex = cex[0] if cex else ([0 for i in range(n_inputs)], [0 for i in range(n_outputs)])
         details_lines.append(','.join([str(s), str(leps), str(ueps), str(spred)] + [str(x) for x in cex[0]] + [str(y) for y in cex[1]]) + '\n')
     summary_file = os.path.join(outdir, 'local_summary.csv')
     details_file = os.path.join(outdir, 'local_details.csv')
@@ -225,12 +225,24 @@ def verify_regions(nnet_path, regions, n_categories, nmin=100, eprec=0.0001, rpa
         vregions.append(vr)
     return vregions
 
-def save_verified_regions(vregions, outdir=default_outdir):
-    n_features = vregions[0]['centroid'].shape[0]
-    header = ','.join([f'cx{i}' for i in range(n_features)] + ['radius', 'epsilon', 'n', 'density', 'category', 'oradius'])
+def save_verified_regions(vregions, outdir=default_outdir, n_categories=5):
+    n_features, n_categories = vregions[0]['centroid'].shape[0], n_categories
+    header = ','.join(
+        [f'cx{i}' for i in range(n_features)] + 
+        ['radius', 'epsilon', 'n', 'density', 'category', 'oradius'] + 
+        [f'cex_x{x}' for x in range(n_features)] +
+        [f'cex_y{y}' for y in range(n_categories)]
+        )
     rows = []
     for r in vregions:
-        rows.append(','.join([str(x) for x in r['centroid']] + [str(v) for v in (r['radius'], r['epsilon'], r['n'], r['density'], r['category'], r['oradius'])]))
+        cex = r['counterexample']
+        cex = cex[0] if cex else (['' for i in range(n_features)], ['' for i in range(n_categories)])
+        rows.append(','.join(
+            [str(x) for x in r['centroid']] + 
+            [str(v) for v in (r['radius'], r['epsilon'], r['n'], r['density'], r['category'], r['oradius'])] + 
+            [str(x) for x in cex[0]] +
+            [str(y) for y in cex[1]]
+            ))
     outpath = os.path.join(outdir, 'vregions.csv')
     with open(outpath, 'w') as f:
         f.writelines('\n'.join([header] + rows))
