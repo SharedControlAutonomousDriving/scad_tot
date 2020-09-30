@@ -143,9 +143,17 @@ class LGKUtils:
         logger.info(f'{len(regions)} regions:\n' + '\n'.join([f'y={r.category}, n={len(r.X)}, d={round(r.density, 2)}' for r in regions]))
     
     @staticmethod
-    def print_summary(lgkm):
-        pass
-    
+    def print_summary(lgkm, boundaries=[10, 100, 1000]):
+        regions = lgkm.get_regions()
+        lines = [
+            '%d regions from %d inputs' % (len(regions), sum([r.n for r in regions])),
+            'n == 1: %d' % sum([1 for r in regions if r.n == 1]),
+            'n > 1: %d' % sum([1 for r in regions if r.n > 1])
+        ]
+        lines.extend(['n >= %d: %d' % (n, sum([1 for r in regions if r.n >= n])) for n in boundaries])
+        summary = '\n'.join(lines)
+        logger.info(f'summary:\n{summary}')
+
     @staticmethod
     def pair_plot_regions(lgkm, save=False, show=True, inc_x=True, outdir=default_outdir, palette='rainbow_r'):
         logger.info('plotting regions...')
