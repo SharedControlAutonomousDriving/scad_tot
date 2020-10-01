@@ -1,4 +1,5 @@
 import os, logging, random, time
+from pathlib import Path
 import pandas as pd
 from decimal import Decimal
 from tot_net import TOTNet
@@ -36,8 +37,7 @@ def tohex(r, g, b):
 
 def create_dirpath(outpath, dirmode=0o755):
     # create directory path if doesn't exist.
-    dirpath = os.path.abspath(os.path.dirname(outpath))
-    os.makedirs(dirpath, mode=dirmode, exist_ok=True)
+    Path(outpath).mkdir(parents=True, exist_ok=True)
 
 class TOTSample:
     def __init__(self, inputs, outputs, id=None):
