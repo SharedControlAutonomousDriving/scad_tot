@@ -3,7 +3,7 @@
 import os
 import numpy as np
 from argparse import ArgumentParser
-from utils import create_logger, count_decimal_places, ms_since_1970, TOTUtils
+from utils import create_logger, create_dirpath, count_decimal_places, ms_since_1970, TOTUtils
 from tot_net import TOTNet
 
 default_outdir = './logs/sensitivity'
@@ -28,8 +28,7 @@ def save_sensitivity_results_to_csv(results, samples, outdir):
         details_lines.extend([','.join([str(x), str(s), str(detail[0]), str(detail[1]), str(samples[s][1].index(max(samples[s][1])))])+'\n' for s,detail in enumerate(details)])
     summary_file = os.path.join(outdir, 'summary.csv')
     details_file = os.path.join(outdir, 'details.csv')
-    if not os.path.exists(outdir):
-        os.makedirs(outdir, mode=0o755)
+    create_dirpath(outdir)
     with open(summary_file, 'w') as f:
         f.writelines(summary_lines)
         logger.info(f'wrote summary to {summary_file}')

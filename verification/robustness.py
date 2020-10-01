@@ -3,7 +3,7 @@
 import os
 import numpy as np
 from argparse import ArgumentParser
-from utils import create_logger, count_decimal_places, ms_since_1970, TOTUtils
+from utils import create_logger, create_dirpath, count_decimal_places, ms_since_1970, TOTUtils
 from tot_net import TOTNet
 from scipy.spatial import distance
 
@@ -32,8 +32,7 @@ def save_local_robustness_results_to_csv(results, samples, outdir):
         details_lines.append(','.join([str(s), str(leps), str(ueps), str(spred)] + [str(x) for x in cex[0]] + [str(y) for y in cex[1]]) + '\n')
     summary_file = os.path.join(outdir, 'local_summary.csv')
     details_file = os.path.join(outdir, 'local_details.csv')
-    if not os.path.exists(outdir):
-        os.makedirs(outdir, mode=0o755)
+    create_dirpath(outdir)
     with open(summary_file, 'w') as f:
         f.writelines(summary_lines)
         logger.info(f'wrote summary to {summary_file}')
@@ -243,6 +242,7 @@ def save_verified_regions(vregions, outdir=default_outdir, n_categories=5):
             [str(y) for y in cex[1]]
             ))
     outpath = os.path.join(outdir, 'vregions.csv')
+    create_dirpath(outpath)
     with open(outpath, 'w') as f:
         f.writelines('\n'.join([header] + rows))
         logger.info(f'wrote verified regions to {outpath}')
