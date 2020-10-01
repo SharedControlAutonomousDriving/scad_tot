@@ -1,6 +1,7 @@
 absl-py==0.9.0
 appnope==0.1.0
 astor==0.8.1
+astroid==2.4.2
 attrs==19.3.0
 backcall==0.1.0
 bleach==3.1.4
@@ -23,6 +24,7 @@ ipykernel==5.2.1
 ipython==7.13.0
 ipython-genutils==0.2.0
 ipywidgets==7.5.1
+isort==5.5.4
 jedi==0.17.0
 Jinja2==2.11.2
 joblib==0.14.1
@@ -33,9 +35,11 @@ jupyter-console==6.1.0
 jupyter-core==4.6.3
 Keras-Applications==1.0.8
 Keras-Preprocessing==1.1.0
-keras2onnx @ git+https://github.com/onnx/keras-onnx.git@5df283ee136a4e85fba7328f7cc8a7d2b8a3a968
+keras2onnx==1.6.5
+lazy-object-proxy==1.4.3
 Markdown==3.2.1
 MarkupSafe==1.1.1
+mccabe==0.6.1
 mistune==0.8.4
 nbconvert==5.6.1
 nbformat==5.0.6
@@ -43,7 +47,7 @@ notebook==6.0.3
 numpy==1.18.3
 oauthlib==3.1.0
 onnx==1.6.0
-onnxconverter-common @ git+https://github.com/microsoft/onnxconverter-common.git@e42677e43686b632b91fc974d3224e0bc8b04ab9
+onnxconverter-common==1.6.5
 onnxruntime==1.2.0
 opt-einsum==3.2.1
 pandas==1.0.3
@@ -59,6 +63,7 @@ pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pybind11==2.5.0
 Pygments==2.6.1
+pylint==2.6.0
 pyrsistent==0.16.0
 python-dateutil==2.8.1
 pytz==2019.3
@@ -79,9 +84,11 @@ tensorflow-estimator==2.1.0
 termcolor==1.1.0
 terminado==0.8.3
 testpath==0.4.4
-tf2onnx @ git+https://github.com/onnx/tensorflow-onnx.git@80edd75330c8f39c0a018e80401e53736bf7dceb
+tf2onnx==1.5.6
+toml==0.10.1
 tornado==6.0.4
 traitlets==4.3.3
+typed-ast==1.4.1
 typing-extensions==3.7.4.2
 urllib3==1.25.9
 wcwidth==0.1.9
