@@ -17,6 +17,7 @@ ENV SCAD_TOT_PATH=${SCAD_TOT_PATH}
 RUN cd /tmp && wget -q -O scad_tot.zip ${SCAD_TOT_URL} && unzip -q scad_tot.zip \
     && mv scad_tot-master ${SCAD_TOT_PATH} && rm -rf scad_tot.zip
 RUN cd ${SCAD_TOT_PATH} && rm -rf ${SCAD_TOT_IGNORE}
+RUN cd ${SCAD_TOT_PATH} && pip install -r requirements.txt
 
 # fix permissions
 RUN chown -R ${MARABOU_USER}:${NB_GROUP} ${SCAD_TOT_PATH}
