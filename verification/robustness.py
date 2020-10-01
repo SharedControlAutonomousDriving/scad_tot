@@ -210,7 +210,6 @@ def verify_region(net, region, n_categories, eprec, rpad=1, verbose=0, timeout=0
     sample = (centroid, [int(region.category==i) for i in range(n_categories)])
     allowed_misclassifications = region.allowed_misclassifications if hasattr(region, 'allowed_misclassifications') else []
     vepsilon, cex = find_epsilon(net, sample, eprec, emax, eprec, allowed_misclassifications=allowed_misclassifications, verbose=verbose, timeout=timeout)
-    # vradius = (vepsilon if vepsilon > 0 else emax) * n_features
     vradius = distance.euclidean(centroid + vepsilon, centroid)
     return (vradius, vepsilon, cex)
 

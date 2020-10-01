@@ -1,149 +1,416 @@
-import os, pickle, argparse
+import os, pickle, math, random
 import numpy as np
-import pandas as pd
-import seaborn as sns
+from scipy import stats
 from sklearn.cluster import KMeans
-from kmodes.kmodes import KModes
-from kmodes.kprototypes import KPrototypes
-from sklearn_extra.cluster import KMedoids
 from scipy.spatial import distance
-from matplotlib import pyplot as plt
-from utils import create_logger, ms_since_1970, tohex, TOTUtils
+from utils import create_dirpath, create_logger
+from tensorflow.keras.models import load_model
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import ImageGrid
 
-algos = {'KMeans': KMeans, 'KModes': KModes, 'KPrototypes': KPrototypes, 'KMedoids': KMedoids}
-metrics = {'euclidean': distance.euclidean, 'manhattan': distance.cityblock}
-init_centroid_choices = ('rand', 'first', 'none')
 default_outdir = './logs/clustering'
 logger = create_logger('clustering', logdir=default_outdir)
-logperf = lambda s: f'({ms_since_1970() - s}ms)'
 
-class LGKClustering:
+init_centroid_choices = ('rand', 'first', 'none')
+selection_choices = ('rand', 'size')
+
+class LabelGuidedKMeans:
     '''
-    Label Guided K* Clustering
-    performs KMeans, KModes, or KPrototypes and divides each cluster into smaller regions that contain a single label
+    Class represeting a set of label-guided k-means regions
+
+    Properties
+        regions : list of all LabelGuidedKMeansRegion objects
+        categories : 1D of 2D array of unique categories
+    
+    Functions
+        fit : generates regions from the input data (performs clustering)
+        predict : finds a matching region for a given x and y
+        get_regions : getter function for regions with optional sorting & filtering
     '''
-    def __init__(self, algo='KMeans', metric='euclidean'):
-        assert algo in algos, f'algo must be one of ({algos.keys()})'
-        assert metric is 'euclidean' if algo is not 'KMedoids' else metric in metrics, 'unsupported metric/algo combination'
-        self.__algorithm, self.__fn, self.__metric, self.__distfn = algo, algos[algo], metric, metrics[metric]
+    def __init__(self):
+        ''' 
+        initializer, sets up object
+        '''
+        self._regions = []
 
-    def fit(self, X, y, init_centroid='rand', categorical=[]):
-        X_count = X.shape[0]
-        assert X_count == y.shape[0], 'X & y must have same number of items'
-        assert X_count == len(np.unique(X, axis=0)), 'X must have no duplicates'
-        assert init_centroid in init_centroid_choices, 'init_centroid mode must be valid'
-        assert not categorical if self.__algorithm is not 'KPrototypes' else True, 'categorical only used by KPrototypes'
+    def fit(self, X, Y, init_centroid='rand'):
+        '''
+        fits the LGKMeans model to the input data to generate regions
 
-        self.__categories = np.unique(y, axis=0)
-        get_centroids = (lambda X,y: LGKUtils.get_initial_centroids(X,y, rand=(init_centroid == 'rand'))) if init_centroid != 'none' else (lambda X,y: None)
-        logger.info(f'finding regions...')
-        start = ms_since_1970()
-        remaining, regions = [(X, y)], []
+        Parameters
+            X : np.array of inputs
+            Y : np.array of integer labels OR np.array of one-hot labels
+            init_centroid : string (rand, first, none)
+        
+        Returns
+            LabelGuidedKMeans object
+        '''
+        assert len(X.shape) == 2, 'Expected a 2D numpy array (n, width)'
+        assert X.shape[0] == Y.shape[0], 'X & Y must have same number of items'
+        assert X.shape[0] == np.unique(X, axis=0).shape[0], 'X must have no duplicates'
+        assert init_centroid in init_centroid_choices, f'init_centroid mode must be one of {init_centroid_choices}'
+
+        self._X, self._Y = X.copy(), np.array([LabelGuidedKMeansUtils.from_categorical(y) for y in Y])
+        # convert categories to array of integers if one-hot encoded
+        self._categories = np.unique(self._Y, axis=0) if len(self._Y.shape) == 1 else np.array([LabelGuidedKMeansUtils.from_categorical(y) for y in np.unique(self._Y, axis=0)])
+        logger.info(f'running label-guided k-means on {self._X.shape[0]} inputs of {self._categories.shape[0]} labels')
+
+        remaining, regions = [(self._X, self._Y)], []
         while len(remaining) > 0:
-            X, y = remaining.pop(0)
-            n = np.unique(y).shape[0]
+            # get data to work on
+            X, Y = remaining.pop(0)
+            n = np.unique(Y, axis=0).shape[0]
+            # setup KMeans params and get initial centroids
             model_params = dict(n_clusters=n)
-            if init_centroid:
-                model_params['init'] = get_centroids(X, y)
-            fit_params = dict()
-            model_data = X
-            if self.__algorithm == 'KPrototypes':
-                fit_params = dict(fit_params, categorical=categorical)
-            if self.__algorithm == 'KMedoids':
-                del model_params['init']
-                model_params = dict(model_params, metric=self.__metric)
-            model = self.__fn(**model_params).fit(model_data, **fit_params)
-            centroids = model.cluster_centers_ if self.__algorithm == 'KMeans' else model.cluster_centroids_
-            yhat = model.predict(model_data)
-            for c in np.unique(yhat):
-                xis = np.where(yhat == c)[0]
-                Xc, yc = X[xis], y[xis]
-                if len(np.unique(yc, axis=0)) == 1:
-                    regions.append(LGKRegion(centroids[c], Xc, yc))
+            if init_centroid != 'none':
+                model_params['init'] = LabelGuidedKMeansUtils.get_initial_centroids(X, Y, rand=(init_centroid=='rand'))
+            # create kmeans clusters, get the centroids, and count labels in each cluster
+            model = KMeans(**model_params).fit(X, Y)
+            centroids = model.cluster_centers_
+            Yhat = model.predict(X)
+            for c in np.unique(Yhat, axis=0):
+                xis = np.where(Yhat == c)[0]
+                Xc, Yc = X[xis], Y[xis]
+                if len(np.unique(Yc, axis=0)) == 1:
+                    # cluster only contained a single label, so save it as a 'region'
+                    regions.append(LabelGuidedKMeansRegion(centroids[c], Xc, Yc, self._categories.shape[0]))
                 else:
-                    remaining.append((Xc, yc))
-        # assert sum total of region sizes equals num rows in X
-        assert(X_count == sum([r.X.shape[0] for r in regions]))
-        logger.info(f'found {len(regions)} regions {logperf(start)}')
-        self.__regions = regions
+                    # cluster contained two or more labels, so repeat KMeans on the cluster.
+                    remaining.append((Xc, Yc))
+
+        # sanity check the regions
+        assert self._X.shape[0] == sum([r.X.shape[0] for r in regions]), 'sum total of region sizes should equal num rows in X'
+        assert all([np.unique(r.Y, axis=0).shape[0] == 1 for r in regions]), 'all points in each region should have the same label'
+
+        self._regions = regions
         return self
     
     def predict(self, x, y=None):
+        '''
+        finds a region
+
+        Parameters
+            x : np array (a single input)
+            y : a single label (optional)
+            init_centroid : string (rand, first, none)
+        
+        Returns
+            The closest LabelGuidedKMeansRegion to x with a matching y
+        '''
         regions = self.get_regions(category=y)
-        distances = {i:self.__distfn(x, r.centroid) for i,r in enumerate(regions)}
+        distances = {i:distance.euclidean(x, r.centroid) for i,r in enumerate(regions)}
         region = regions[min(distances, key=distances.get)]
         return region
     
     def get_regions(self, category=None, sort=False, sortrev=True):
-        regions = self.__regions
+        '''
+        getter for regions
+
+        Parameters
+            category : (integer or one-hot encoded) return only categories for a given category
+            sort : bool (if true, returns in ascending sorted order)
+            sortrev : bool (reverses sort order)
+        
+        Returns
+            list of LabelGuidedKMeansRegion objects
+        '''
+        regions = self._regions
+        # convert category to integer if one-hot encoded
         if category is not None:
-            assert(category in self.__categories)
+            category = category if isinstance(category, (int, np.integer)) else np.argmax(category)
+            assert category in self.categories, f'regions with category {category} do not exist'
             regions = [r for r in regions if r.category == category]
         if sort:
             regions = sorted(regions, key=lambda r:(r.X.shape[0], r.density), reverse=sortrev)
         return regions
+    regions = property(get_regions)
     
-    def get_categories(self):
-        return self.__categories
+    def get_categories(self, onehot=False):
+        '''
+        custom getter for 'categories'
 
-class LGKRegion:
-    '''
-    LG Region
-    represents a label-guided 'region' which contains inputs of a single label
-    '''
-    def __init__(self, centroid, X, y, metric='euclidean'):
-        assert X.shape[0] == y.shape[0], 'X and y must have same number of items'
-        assert len(np.unique(y, axis=0)) == 1, 'all labels in y must be the same'
-        assert metric in metrics, 'unsupported metric'
-        self.__metric, self.__distfn = metric, metrics[metric]
-        self.centroid, self.X, self.y, self.category, self.n = centroid, X, y, y[0], X.shape[0]
-        self.radii = [self.__distfn(x, self.centroid) for x in X]
-        self.radius = max(self.radii)
-        self.density = (self.n / self.radius) if self.radius > 0 else 0
+        Parameters:
+            onehot: if true, converts categories to one-hot encoding
+        
+        Returns:
+            np.array of integers OR np.array of one-hot encoded values
+        '''
+        return np.array([LabelGuidedKMeansUtils.to_categorical(c, self._categories.shape[0]) for c in self._categories]) if onehot else self._categories
+    categories = property(get_categories)
 
-class LGKUtils:
+    @property
+    def n_categories(self): return self.categories.shape[0]
+
+class LabelGuidedKMeansRegion:
+    '''
+    Class represeting a label-guided k-means region
+
+    Properties
+        centroid : np array, the center of the region
+        radius : float, the region's radius
+        n : integer, number of inputs in the region
+        density : float, region's density (n / radius)
+        category : label (y) for the region
+        X : returns the region's inputs
+        Y : returns the region's labels
+    '''
+    def __init__(self, centroid, X, Y, ncats):
+        '''
+        initializer - sets up object and calculates n, radius, and density
+        
+        Parameters
+            centroid : np array, represents center of region
+            X : np array, inputs in region
+            Y : np array, labels for inputs
+            ncats: total number of categories (for one-hot encoding)
+        '''
+        assert X.shape[0] == Y.shape[0], 'X and Y must have same number of items'
+        assert np.unique(Y, axis=0).shape[0] == 1, 'all labels in Y must be the same'
+
+        self._centroid = centroid
+        self._X = X
+        self._Y = Y
+        self._category = Y[0] if isinstance(Y[0], (int, np.integer)) else LabelGuidedKMeansUtils.from_categorical(Y[0])
+        self._n = self._X.shape[0]
+        self._radius = max([distance.euclidean(x, self.centroid) for x in X])
+        self._density = (self.n / self.radius) if self.radius > 0 else 0
+        self._ncats = ncats
+
+    @property
+    def centroid(self): return self._centroid
+
+    @property
+    def density(self): return self._density
+
+    @property
+    def radius(self): return self._radius
+    
+    @property
+    def n(self): return self._n
+
+    def get_category(self, onehot=False):
+        '''
+        custom getter for category
+
+        Parameters
+            onehot: when true, returns category in onehot encoding
+        
+        Returns
+            integer OR one-hot encoded np.array
+        '''
+        return LabelGuidedKMeansUtils.to_categorical(self._category, self._ncats) if onehot else self._category
+    category = property(get_category)
+
+    def get_X(self, sort=False, sortrev=False):
+        '''
+        custom getter for 'X'
+
+        Parameters:
+            sort : bool, returns points sorted by dist from centroid (smallest to largest)
+            sortrev : bool, reverses order of sorting (largest to smallest)
+        
+        Returns
+            np.array of all original inputs (x) in the region
+        '''
+        return np.array(sorted(self._X, key=lambda x: distance.euclidean(x, self._centroid), reverse=sortrev)) if sort else self._X
+    X = property(get_X)
+
+    def get_Y(self, onehot=False):
+        '''
+        custom getter for 'Y'
+
+        Parameters
+            onehot : bool, returns Y in onehot encoding when true
+        
+        Returns
+            1D np.array of labels OR 2D np.array of onehot encoded labels
+        '''
+        return np.array([LabelGuidedKMeansUtils.to_categorical(y, self._ncats) for y in self._Y]) if onehot else self._Y
+    Y = property(get_Y)
+
+class LabelGuidedKMeansUtils:
     @staticmethod
-    def find_region(lgkc, x, category, metric='euclidean'):
-        assert metric in metrics, 'unsupported metric'
-        return next([r for r in lgkc.get_regions(category=category) if metrics[metric](x, r.centroid) < r.radius])
+    def get_initial_centroids(X, Y, rand=True):
+        '''
+        helper function for getting the initial centroids used in KMeans
 
+        Parameters
+            X : np array input data
+            Y : np array of labels for input data
+            rand : bool (if true choose a random item, else just the first)
+        
+        Returns
+            initial centroids (array of inputs from X)
+        '''
+        # if Y is categorical, convert to 1D array of ints
+        Y = Y if len(Y.shape) == 1 else np.array([LabelGuidedKMeansUtils.from_categorical(y) for y in Y])
+        return np.array([X[np.random.choice(cy) if rand else 0] for cy in [[i for i,y in enumerate(Y) if y == c] for c in np.unique(Y, axis=0)]])
+
+    @staticmethod
+    def find_original_point(region, X_orig, nearest=True):
+        '''
+        finds the matching original point from a region
+
+        Parameters
+            region : LabelGuidedKMeansRegion object
+            X_orig : np.array, dataset's original inputs (X)
+            nearest : dataset's original inputs (X)
+        
+        Returns
+            a single x as np.array, OR None if not found
+        '''
+        X = region.get_X(sort=True, sortrev=(not nearest))
+        X_orig = X_orig.reshape((X_orig.shape[0], -1))
+        for x in X:
+            if x in X_orig:
+                return x
+        return None
+
+    @staticmethod
+    def find_region(lgkm, x, category=None):
+        '''
+        finds a given region for a given input
+
+        Parameters
+            lgkm : LabelGuidedKMeans object
+            x : the input
+            category : the input's category (optional)
+        
+        Returns
+            LabelGuidedKMeansRegion object
+        '''
+        return next(iter([r for r in lgkm.get_regions(category=category) if distance.euclidean(x, r.centroid) <= r.radius]))
+    
+    @staticmethod
+    def filter_regions(lgkm, modelpath):
+        '''
+        filters out regions whose centroid is not correctly predicted by the supplied network
+
+        Parameters:
+            lgkm: LabekGuidedKMeans object
+            modelpath: path to the h5 or pb model
+        '''
+        regions = lgkm.get_regions()
+        model = load_model(modelpath)
+        predictions = model.predict([r.centroid for r in regions])
+        return [r for i,r in enumerate(regions) if LabelGuidedKMeansUtils.validate_prediction(r.category, predictions[i])]
+    
     @staticmethod
     def to_categorical(y, n_cats):
-        return np.array([[int(yi==i) for i in range(n_cats)] for yi in y])
+        '''
+        converts a given y value to categorical (one-hot)
+
+        Parameters:
+            y: integer
+            n_cats: number of categories
+        '''
+        return np.array([int(y == i) for i in range(n_cats)])
+    
+    @staticmethod
+    def from_categorical(y):
+        '''
+        converts a given categorical (one-hot) value to integer
+
+        Parameters:
+            y: one-hot encoded array
+        '''
+        return np.argmax(y)
 
     @staticmethod
-    def get_initial_centroids(X, y, rand=True):
-        return np.array([X[np.random.choice(cy) if rand else 0] for cy in [[i for i,yi in enumerate(y) if yi == c] for c in np.unique(y, axis=0)]])
+    def remove_outliers(X, Y, tolerance):
+        '''
+        removes outliers with abs(zscore(X)) < tolerance from the dataset
+        zscore => (X – μ) / σ
+
+        returns X
+        '''
+        idxs = np.where((np.abs(stats.zscore(X)) < tolerance).all(axis=1))[0]
+        return X[idxs], Y[idxs]
     
     @staticmethod
-    def find_input_index(x, X):
-        idxs = np.where((X == x).all(axis=1))[0]
-        return (idxs[0] if len(idxs) else None)
+    def load_dataset(csvfile, n_outputs=5, index_col=0, header_row=True):
+        '''
+        loads the dataset from csv
+        columns in format [index, x0, x1...xN, y0...yN]
+
+        Parameters
+            csvfile : path to csv file
+            n_outputs : int, number of outputs in dataset
+            index_col : int, column number of index column (pass None if no index column)
+            header_row : bool, ignore first row when true
+        
+        Return
+            tuple (X, Y) where X and Y are np.array
+        '''
+        logger.info(f'reading dataset from {csvfile}...')
+        # load from csv file into numpy array
+        data = np.loadtxt(csvfile, delimiter=',', skiprows=1 if header_row else 0)
+        # drop index column (if exists)
+        if index_col != None:
+            data = np.delete(data, index_col, axis=1)
+        # drop duplicate rows
+        data = np.unique(data, axis=0)
+        # split input columns and output columns
+        X, Y = np.hsplit(data, [data.shape[1] - n_outputs])
+        return X, Y
+
+    @staticmethod
+    def validate_prediction(y, pred):
+        '''
+        returns true if the prediction equals the expected label
+        (note: returns false if the max value appears in multiple outputs (e.g. [3,1,9,4,9]))
+        
+        Parameters:
+            y: expected label (integer or one-hot)
+            pred: network's outputs
+        '''
+        # convert y to integer if categorical is supplied.
+        y = y if isinstance(y, (int, np.integer)) else LabelGuidedKMeansUtils.from_categorical(y)
+        maxidxs = np.argwhere(pred == np.amax(pred)).reshape(-1)
+        return (maxidxs.shape[0] == 1) and maxidxs[0] == y
     
     @staticmethod
-    def get_input_class(x, X, y):
-        assert(X.shape[0] == y.shape[0])
-        idx = LGKUtils.find_input_index(x, X)
-        return (y[idx] if idx is not None else None)
-    
+    def reduce_classes(Y, metaclasses=[(0,1), (2,), (3,4)]):
+        '''
+        reduces the original labels to combined 'metalabels'
+
+        Parameters:
+            Y: 1D or 2D numpy array of labels
+            metaclasses: representation of the desired classes
+
+        Example:
+            [(0,1), (2,), (3,4)] will combine labels 0/1 and 4/4 into two classes instead of 4
+        '''
+        Yprime = np.array([LabelGuidedKMeansUtils.from_categorical(y) for y in Y]) if len(Y.shape) == 2 else Y.copy()
+        for mc,classes in enumerate(metaclasses):
+            for c in classes:
+                Yprime[Y==c] = mc
+        return Yprime
+
     @staticmethod
-    def save(lgkm, outdir=default_outdir):
-        savepath = os.path.join(outdir, 'lgkm.pkl')
-        pickle.dump(lgkm, open(savepath, 'wb'))
-        logger.info(f'saved to {savepath}')
-    
-    @staticmethod
-    def load(path):
-        lgkm = pickle.load(open(path, 'rb'))
-        return lgkm
-    
-    @staticmethod
-    def print_regions(lgkm, sort=True):
+    def print_regions(lgkm, sort=False, sortrev=True):
+        '''
+        prints all regions
+        
+        Parameters
+            lgkm : LabelGuidedKMeans object
+            sort : bool (if true, returns in ascending sorted order)
+            sortrev : bool (reverses sort order)
+        '''
         regions = lgkm.get_regions(sort=sort)
-        logger.info(f'{len(regions)} regions:\n' + '\n'.join([f'y={r.category}, n={len(r.X)}, d={round(r.density, 2)}' for r in regions]))
+        stringify_region = lambda r: ', '.join([f'{p}={getattr(r, p)}' for p in ('category', 'n', 'radius', 'density')])
+        print(f'{len(regions)} regions:\n' + '\n'.join([stringify_region(r) for r in regions]))
     
     @staticmethod
-    def print_summary(lgkm, boundaries=[10, 100, 1000]):
+    def print_summary(lgkm, boundaries=[10, 100, 1000], modelpath=''):
+        '''
+        prints a summary of the LGKMeans region sizes
+
+        Parameters
+            lgkm : LabelGuidedKMeans object
+            boundaries : list of integers (specifies which boundaries to print)
+            modelpath : if supplied, centroids will be checked against network
+        '''
         regions = lgkm.get_regions()
         lines = [
             '%d regions from %d inputs' % (len(regions), sum([r.n for r in regions])),
@@ -151,77 +418,78 @@ class LGKUtils:
             'n > 1: %d' % sum([1 for r in regions if r.n > 1])
         ]
         lines.extend(['n >= %d: %d' % (n, sum([1 for r in regions if r.n >= n])) for n in boundaries])
+        if modelpath:
+            filtered = LabelGuidedKMeansUtils.filter_regions(lgkm, modelpath)
+            nregions, nfiltered = len(regions), len(filtered)
+            lines.append('%d of %d centroids are valid (%f)' % (nfiltered, nregions, 100*nfiltered/nregions))
         summary = '\n'.join(lines)
-        logger.info(f'summary:\n{summary}')
-
-    @staticmethod
-    def pair_plot_regions(lgkm, save=False, show=True, inc_x=True, outdir=default_outdir, palette='rainbow_r'):
-        logger.info('plotting regions...')
-        regions = lgkm.get_regions()
-        n_cats = len(lgkm.get_categories())
-        X = ([x for r in regions for x in r.X] if inc_x else []) + [r.centroid for r in regions]
-        y = ([y for r in regions for y in r.y] if inc_x else []) + [n_cats+r.category for r in regions]
-        df = pd.DataFrame(X, columns=TOTUtils.get_feature_names())
-        df['y'] = y
-        colors = [tohex(r,g,b) for r,g,b in sns.color_palette('rainbow_r', n_cats)]
-        palette = {i:colors[i if i < n_cats else i-n_cats] for i in range(n_cats*(2 if inc_x else 1))}
-        markers = ['o' if i<n_cats else 'D' for i in range(n_cats*(2 if inc_x else 1))]
-        g = sns.pairplot(df, hue='y', corner=True, palette=palette, markers=markers, plot_kws=dict(alpha=0.5, s=10))
-        g = g.add_legend({i:l for i,l in enumerate(TOTUtils.get_category_names())})
-        if save:
-            savepath = os.path.join(outdir, 'lgkm.png')
-            g.savefig(savepath, dpi=300)
-            logger.info(f'regions plot saved to {savepath}')
-        if show:
-            plt.show()
+        print(summary)
     
     @staticmethod
-    def tsne_plot_regions(lgkm, save=False):
-        pass
+    def serialize_regions(lgkm, sort=False, sortrev=True, include_data=False):
+        '''
+        serializes regions from LabelGuidedKMeans object into a list of dictionaries
 
+        Parameters
+            lgkm : LabelGuidedKMeans object
+            sort : bool (sorts in ascending order by radius & density)
+            sortrev : bool (reverses order of sort)
+            include_data : bool (if true, X and Y are included)
+        
+        Returns
+            list of dictionaries
+        '''
+        props = ['centroid', 'category', 'density', 'radius', 'n', *(['X', 'Y'] if include_data else [])]
+        return [{getattr(r, p) for p in props} for r in lgkm.get_regions(sort=sort, sortrev=sortrev)]
+    
     @staticmethod
-    def reduce_classes(y, metaclasses=[(0,1), (2,), (3,4)]):
-        yprime = y.copy()
-        for mc,classes in enumerate(metaclasses):
-            for c in classes:
-                yprime[y==c] = mc
-        return yprime
+    def save(lgkm, outpath='./lgkm.p', serialize=False, include_data=False):
+        '''
+        saves a LabelGuidedKMeans object (or list of dicts) to a pickle
 
+        Parameters
+            lgkm : LabelGuidedKMeans object
+            outpath : the output filepath
+            serialized : bool (if true, serializes lgkm to list of dicts)
+            include_data : bool (if true, saves X and Y - much larger file size)
+        '''
+        data = lgkm if not serialize else LabelGuidedKMeansUtils.serialize_regions(lgkm, include_data=include_data)
+        create_dirpath(outpath)
+        pickle.dump(data, open(outpath, 'wb'))
+        print(f'saved to {outpath}')
+    
     @staticmethod
-    def load_dataset(csvfile, n_outputs):
-        logger.info(f'reading dataset from {csvfile}...')
-        # read input and outputs into separate dataframes
-        df = pd.read_csv(csvfile, index_col=0).drop_duplicates()
-        output_cols = df.columns.tolist()[-n_outputs:]
-        output_df, input_df = df[output_cols], df.drop(output_cols, axis=1)
-        # drop any duplicate inputs from both dataframes
-        dupes = [i for i,d in enumerate(input_df.duplicated()) if d]
-        input_df = input_df.drop(input_df.index[dupes], axis=0)
-        output_df = output_df.drop(output_df.index[dupes], axis=0)
-        # convert to numpy arrays
-        X = input_df.values
-        y = np.array([output_cols.index(c) for c in (output_df[output_cols] == 1).idxmax(1)])
-        return X, y
+    def load(path):
+        '''
+        loads a pickled object
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--file', required=True)
-    parser.add_argument('-n', '--noutputs', required=True)
-    parser.add_argument('-i', '--initcentroid', default='rand', nargs='?', choices=init_centroid_choices)
-    parser.add_argument('-o', '--outdir', default=default_outdir)
-    # parser.add_argument('-p', '--plot', action='store_true')
-    parser.add_argument('-sr', '--saveregions', action='store_true')
-    parser.add_argument('-sl', '--savelogs', action='store_true')
-    parser.add_argument('-v', '--verbosity', type=int, default=0)
-    args = parser.parse_args()
-    # configure logger
-    for handler in logger.handlers[:]: logger.removeHandler(handler)  
-    logger = create_logger('clustering', to_file=args.savelogs, logdir=args.outdir)
-    # read dataset, and start clustering
-    X, y = LGKUtils.load_dataset(args.file, args.noutputs)
-    lgkm = LGKClustering().fit(X, y, init_centroid=args.initcentroid)
-    # print regions
-    if args.verbosity > 0: LGKUtils.print_regions(lgkm)
-    # generate plot png, and save regions
-    # if args.plot: LGKUtils.plot_regions(lgkm, save=True, show=False, outdir=args.outdir)
-    if args.saveregions: LGKUtils.save(lgkm, outdir=args.outdir)
+        Parameters
+            path : string (path to pickle)
+
+        Returns
+            LabelGuidedKMeans object (or list of dictionaries)
+        '''
+        lgkm = pickle.load(open(path, 'rb'))
+        return lgkm
+    
+    @staticmethod
+    def save_regions_csv(lgkm, sort=True, sortrev=True, outpath='./lgkm.csv'):
+        '''
+        saves a LabelGuidedKMeans object's regions to CSV
+
+        Parameters
+            lgkm : LabelGuidedKMeans object
+            sort : bool (sorts in ascending order by radius & density)
+            sortrev : bool (reverses order of sort)
+            outpath : the output filepath
+        '''
+        regions = lgkm.get_regions(sort=sort, sortrev=sortrev)
+        n_features = regions[0].centroid.shape[0]
+        header = ','.join([f'cx{i}' for i in range(n_features)] + ['radius', 'n', 'density', 'category'])
+        rows = []
+        for r in regions:
+            rows.append(','.join([str(x) for x in r.centroid] + [str(v) for v in (r.radius, r.n, r.density, r.category)]))
+        create_dirpath(outpath)
+        with open(outpath, 'w') as f:
+            f.writelines('\n'.join([header] + rows))
+            print(f'saved regions to {outpath}')

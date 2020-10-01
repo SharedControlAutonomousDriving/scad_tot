@@ -23,11 +23,21 @@ This option runs the project from within a docker container. It is really intend
 
 There are a few different versions of the dataset, depending on your needs. The current DNNs we have were built using All_Features_ReactionTime.csv.
 
+### Primary Dataset Files
+
 * [Raw Data](https://drive.google.com/drive/folders/1TLz-cKsXMNdIr8A6Aix16QjpRZP_S0BM?usp=sharing) - Raw data from individual simulator runs (separete text file per run)
 * [Cleaned Data](https://drive.google.com/drive/folders/1MsyvGP6BblBIB-88ajTFldBWlUFid8RF?usp=sharing) - Cleaned data from individual simulator runs (separate csv file per run)
 * [AllData.csv](https://drive.google.com/file/d/1k7fG80Hsb2ZjkbZl_Kx47rE0LiSmaMPG/view?usp=sharing) - Cleaned data combined into a single file (7GB)
 * [cleaned_AllData.csv](https://drive.google.com/file/d/1QuZlTzdaqi5BmtiC4wQZTb_6mFv296Lb/view?usp=sharing) - Cleaned up version of AllData.csv (3GB)
 * [All_Features_ReactionTime.csv](https://drive.google.com/file/d/1vNT9PopDTy7nUsedAHdg1-VFAKrk6PIO/view?usp=sharing) - cleaned_AllData.csv cleaned further with "ReactionTime" and engineered features (2GB)
+
+## Other dataset files
+
+Pre-processed dataset files used to build, train, and verify the latest version of TOT model. The training and testing files are the data used to train & test (respectively), and the verification data is the training and testing data combined with incorrectly predicted rows filtered out.
+
+* Training data for v3.2.2: [v3.2.2_train.csv](https://drive.google.com/file/d/1tDqUhCdjHGVmrWHqoKeWLXVG9HhCwUsf/view?usp=sharing)
+* Testing data for v3.2.2: [v3.2.2_test.csv](https://drive.google.com/file/d/15jWpFcIh7_KZSNEfqWg5Zv9NW3zqKVbC/view?usp=sharing)
+* Verification data for v3.2.2: [verification.csv](https://drive.google.com/file/d/1c8hkHajx-ESUFcS35akhsQ3hMpM_uI22/view?usp=sharing)
 
 ## Running Verification
 
