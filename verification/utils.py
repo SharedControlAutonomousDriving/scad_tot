@@ -34,6 +34,11 @@ def print_heading(text):
 def tohex(r, g, b):
     return '#%02x%02x%02x' % (int(r*255), int(g*255), int(b*255))
 
+def create_dirpath(outpath, dirmode=0o755):
+    # create directory path if doesn't exist.
+    dirpath = os.path.abspath(os.path.dirname(outpath))
+    os.makedirs(dirpath, mode=dirmode, exist_ok=True)
+
 class TOTSample:
     def __init__(self, inputs, outputs, id=None):
         self.inputs = inputs
