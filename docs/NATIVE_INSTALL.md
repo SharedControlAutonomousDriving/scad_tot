@@ -17,6 +17,7 @@ Using a virtual environment is recommended. The commands below will create and s
 
 * **%** `python3 -m venv venv`
 * **%** `source venv/bin/activate`
+* **%** `pip install --upgrade pip`
 * **%** `pip install -r requirements.txt`
 * **%** `./scripts/setup_venv.sh`
 * **%** `deactivate`
