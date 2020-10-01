@@ -33,7 +33,7 @@ There are a few different versions of the dataset, depending on your needs. The 
 
 ## Other dataset files
 
-Pre-processed dataset files used to build, train, and verify the latest version of TOT model. The training and testing files are the data used to train & test (respectively), and the verification data is the training and testing data combined with incorrectly predicted rows filtered out.
+These are the pre-processed that were used to build, train, and verify the latest version of TOT model. The training and testing data were used to train & test the model, and the verification data consists of the training and testing data combined with incorrectly predicted rows filtered out.
 
 * Training data for v3.2.2: [v3.2.2_train.csv](https://drive.google.com/file/d/1tDqUhCdjHGVmrWHqoKeWLXVG9HhCwUsf/view?usp=sharing)
 * Testing data for v3.2.2: [v3.2.2_test.csv](https://drive.google.com/file/d/15jWpFcIh7_KZSNEfqWg5Zv9NW3zqKVbC/view?usp=sharing)
