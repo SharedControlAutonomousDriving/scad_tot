@@ -3,7 +3,7 @@ import numpy as np
 from scipy import stats
 from sklearn.cluster import KMeans
 from scipy.spatial import distance
-from utils import create_dirpath, create_logger
+from utils import create_dirpath, create_logger, ms_since_1970
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
@@ -50,6 +50,7 @@ class LabelGuidedKMeans:
         assert X.shape[0] == np.unique(X, axis=0).shape[0], 'X must have no duplicates'
         assert init_centroid in init_centroid_choices, f'init_centroid mode must be one of {init_centroid_choices}'
 
+        start_time = ms_since_1970()
         self._X, self._Y = X.copy(), np.array([LabelGuidedKMeansUtils.from_categorical(y) for y in Y])
         # convert categories to array of integers if one-hot encoded
         self._categories = np.unique(self._Y, axis=0) if len(self._Y.shape) == 1 else np.array([LabelGuidedKMeansUtils.from_categorical(y) for y in np.unique(self._Y, axis=0)])
@@ -82,6 +83,7 @@ class LabelGuidedKMeans:
         assert self._X.shape[0] == sum([r.X.shape[0] for r in regions]), 'sum total of region sizes should equal num rows in X'
         assert all([np.unique(r.Y, axis=0).shape[0] == 1 for r in regions]), 'all points in each region should have the same label'
 
+        logger.info(f'completed in {ms_since_1970() - start_time} ms')
         self._regions = regions
         return self
     
