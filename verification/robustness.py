@@ -30,9 +30,9 @@ def save_local_robustness_results_to_csv(results, samples, outdir):
         leps, ueps, spred, cex = detail[0], detail[1], samples[s][1].index(max(samples[s][1])), detail[2]
         cex = cex[0] if cex else ([0 for i in range(n_inputs)], [0 for i in range(n_outputs)])
         details_lines.append(','.join([str(s), str(leps), str(ueps), str(spred)] + [str(x) for x in cex[0]] + [str(y) for y in cex[1]]) + '\n')
+    create_dirpath(outdir)
     summary_file = os.path.join(outdir, 'local_summary.csv')
     details_file = os.path.join(outdir, 'local_details.csv')
-    create_dirpath(outdir)
     with open(summary_file, 'w') as f:
         f.writelines(summary_lines)
         logger.info(f'wrote summary to {summary_file}')
@@ -241,8 +241,8 @@ def save_verified_regions(vregions, outdir=default_outdir, n_categories=5):
             [str(x) for x in cex[0]] +
             [str(y) for y in cex[1]]
             ))
+    create_dirpath(outdir)
     outpath = os.path.join(outdir, 'vregions.csv')
-    create_dirpath(outpath)
     with open(outpath, 'w') as f:
         f.writelines('\n'.join([header] + rows))
         logger.info(f'wrote verified regions to {outpath}')
