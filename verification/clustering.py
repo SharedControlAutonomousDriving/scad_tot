@@ -456,7 +456,7 @@ class LabelGuidedKMeansUtils:
             include_data : bool (if true, saves X and Y - much larger file size)
         '''
         data = lgkm if not serialize else LabelGuidedKMeansUtils.serialize_regions(lgkm, include_data=include_data)
-        create_dirpath(outpath)
+        create_dirpath(os.path.dirname(os.path.abspath(outpath)))
         pickle.dump(data, open(outpath, 'wb'))
         print(f'saved to {outpath}')
     
