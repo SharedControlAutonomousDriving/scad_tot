@@ -208,18 +208,20 @@ def verify_region(net, region, n_categories, eprec, rpad=1, verbose=0, timeout=0
     emax =  ((radius + rpad) / n_features)
     sample = (centroid, [int(region.category==i) for i in range(n_categories)])
     allowed_misclassifications = region.allowed_misclassifications if hasattr(region, 'allowed_misclassifications') else []
+    start = ms_since_1970()
     vepsilon, cex = find_epsilon(net, sample, eprec, emax, eprec, allowed_misclassifications=allowed_misclassifications, verbose=verbose, timeout=timeout)
+    duration = ms_since_1970() - start
     vradius = distance.euclidean(centroid + vepsilon, centroid)
-    return (vradius, vepsilon, cex)
+    return (vradius, vepsilon, cex, duration)
 
 def verify_regions(nnet_path, regions, n_categories, nmin=100, eprec=0.0001, rpad=1, verbose=0, timeout=0):
     nregions, vregions = len(regions), []
     net = TOTNet(nnet_path)
     for i,r in enumerate(regions):
-        vrad, veps, cex = verify_region(net, r, n_categories, eprec, rpad=rpad, verbose=verbose, timeout=timeout)
-        if verbose > 0: logger.info(f'region {i} of {nregions} verified with r={vrad}, e={veps}')
+        vrad, veps, cex, duration = verify_region(net, r, n_categories, eprec, rpad=rpad, verbose=verbose, timeout=timeout)
+        if verbose > 0: logger.info(f'region {i} of {nregions} verified with r={vrad}, e={veps} ({duration} ms)')
         density = r.n/vrad if vrad > 0 else r.n/eprec
-        vr = dict(centroid=r.centroid, radius=vrad, epsilon=veps, n=r.n, density=density, category=r.category, oradius=r.radius, counterexample=cex)
+        vr = dict(centroid=r.centroid, radius=vrad, epsilon=veps, n=r.n, density=density, category=r.category, oradius=r.radius, counterexample=cex, duration=duration)
         vregions.append(vr)
     return vregions
 
@@ -227,7 +229,7 @@ def save_verified_regions(vregions, outdir=default_outdir, n_categories=5):
     n_features, n_categories = vregions[0]['centroid'].shape[0], n_categories
     header = ','.join(
         [f'cx{i}' for i in range(n_features)] + 
-        ['radius', 'epsilon', 'n', 'density', 'category', 'oradius'] + 
+        ['radius', 'epsilon', 'n', 'density', 'category', 'oradius', 'duration'] + 
         [f'cex_x{x}' for x in range(n_features)] +
         [f'cex_y{y}' for y in range(n_categories)]
         )
@@ -237,7 +239,7 @@ def save_verified_regions(vregions, outdir=default_outdir, n_categories=5):
         cex = cex[0] if cex else (['' for i in range(n_features)], ['' for i in range(n_categories)])
         rows.append(','.join(
             [str(x) for x in r['centroid']] + 
-            [str(v) for v in (r['radius'], r['epsilon'], r['n'], r['density'], r['category'], r['oradius'])] + 
+            [str(v) for v in (r['radius'], r['epsilon'], r['n'], r['density'], r['category'], r['oradius'], r['duration'])] + 
             [str(x) for x in cex[0]] +
             [str(y) for y in cex[1]]
             ))
