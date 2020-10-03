@@ -19,13 +19,15 @@ class LabelGuidedKMeans:
     Class represeting a set of label-guided k-means regions
 
     Properties
-        regions    : list of all LabelGuidedKMeansRegion objects
-        categories : 1D of 2D array of unique categories
+        regions      : list of all LabelGuidedKMeansRegion objects
+        categories   : 1D of 2D array of unique categories
+        n_categories : number of unique categories (labels)
     
     Functions
-        fit         : generates regions from the input data (performs clustering)
-        predict     : finds a matching region for a given x and y
-        get_regions : getter function for regions with optional sorting & filtering
+        fit            : generates regions from the input data (performs clustering)
+        predict        : finds a matching region for a given x and y
+        get_regions    : getter function for regions with optional sorting & filtering
+        get_categories : getter function for categories with optional onehot encoding
     '''
     def __init__(self):
         ''' 
@@ -159,6 +161,11 @@ class LabelGuidedKMeansRegion:
         category : label (y) for the region
         X        : returns the region's inputs
         Y        : returns the region's labels
+    
+    Functions
+        get_category : getter for category with optional onehot encoding
+        get_X        : getter for X with optional sorting
+        get_Y        : getter for Y with optional onehot encoding
     '''
     def __init__(self, centroid, X, Y, ncats):
         '''
