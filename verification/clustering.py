@@ -382,6 +382,9 @@ class LabelGuidedKMeansUtils:
         # separate inputs and outputs
         X = df.iloc[:, 0:df.shape[1] - n_outputs].to_numpy()
         Y = df.iloc[:, -n_outputs:].to_numpy()
+        # drop X duplicates
+        X, idxs = np.unique(X, axis=0, return_index=True)
+        Y = Y[idxs]
         return X, Y
 
     @staticmethod
@@ -407,6 +410,8 @@ class LabelGuidedKMeansUtils:
         Parameters
             Y           : 1D or 2D numpy array of labels
             metaclasses : representation of the desired classes
+        Return
+            np.array of metalabels
 
         Example:
             [(0,1), (2,), (3,4)] will combine labels 0/1 and 4/4 into two classes instead of 4
