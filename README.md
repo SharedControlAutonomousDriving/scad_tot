@@ -39,6 +39,11 @@ These are the pre-processed that were used to build, train, and verify the lates
 * Testing data for v3.2.2: [v3.2.2_test.csv](https://drive.google.com/file/d/15jWpFcIh7_KZSNEfqWg5Zv9NW3zqKVbC/view?usp=sharing)
 * Verification data for v3.2.2: [verification.csv](https://drive.google.com/file/d/1c8hkHajx-ESUFcS35akhsQ3hMpM_uI22/view?usp=sharing)
 
+## Dataset Info
+
+* [Annotations](https://drive.google.com/file/d/1lyDca6TWOFq1vRsExUxOpx6Y5g1Z7Cpo/view?usp=sharing)
+* [Feature Bounds](https://docs.google.com/spreadsheets/d/11i0xvm1eQQ8L82C4-_DEJRmOSk7K-5stjU42DuxRiiY/edit?usp=sharing)
+
 ## Running Verification
 
 ### Robustness
