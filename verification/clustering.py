@@ -12,7 +12,7 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 default_outdir = './logs/clustering'
 logger = create_logger('clustering', logdir=default_outdir)
 
-init_centroid_choices = ('rand', 'first', 'kmeans++')
+init_centroid_choices = ('mean', 'rand', 'first', 'kmeans++')
 
 class LabelGuidedKMeans:
     '''
@@ -35,14 +35,15 @@ class LabelGuidedKMeans:
         '''
         self._regions = []
 
-    def fit(self, X, Y, init_centroid='rand'):
+    def fit(self, X, Y, init_centroid='mean'):
         '''
         fits the LGKMeans model to the input data to generate regions
 
         Parameters
             X             : np.array of inputs
             Y             : np.array of integer labels OR np.array of one-hot labels
-            init_centroid : string (rand, first, kmeans++)                    
+            init_centroid : string (rand, mean, first, kmeans++)                    
+                                mean     - uses the mean of points of each label
                                 rand     - chooses a random point of each label
                                 first    - chooses the first point of each label
                                 kmeans++ - uses native 'kmeans++' algorithm (ignoring labels)
@@ -69,7 +70,7 @@ class LabelGuidedKMeans:
             # setup KMeans params and get initial centroids
             model_params = dict(n_clusters=n)
             if init_centroid != 'kmeans++':
-                model_params['init'] = LabelGuidedKMeansUtils.get_initial_centroids(X, Y, rand=(init_centroid=='rand'))
+                model_params['init'] = LabelGuidedKMeansUtils.get_initial_centroids(X, Y, mode=init_centroid)
             # create kmeans clusters, get the centroids, and count labels in each cluster
             model = KMeans(**model_params).fit(X, Y)
             centroids = model.cluster_centers_
@@ -243,24 +244,32 @@ class LabelGuidedKMeansRegion:
 
 class LabelGuidedKMeansUtils:
     @staticmethod
-    def get_initial_centroids(X, Y, rand=True):
+    def get_initial_centroids(X, Y, mode='mean'):
         '''
         helper function for getting the initial centroids used in KMeans
 
         Parameters
             X    : np array input data
             Y    : np array of labels for input data
-            rand : bool (if true choose a random item, else just the first)
-        
+            mode : mode for choosing centroids (rand, first, mean)
+                    rand - random input of each label
+                    first - first input of each label
+                    mean - mean of inputs of each label
         Return
             np.array of initial centroids (array of inputs from X)
         '''
+        assert mode in ('rand', 'first', 'mean'), 'unsupported mode'
         # if labels are onehot, convert to integers
         Y = Y if len(Y.shape) == 1 else np.array([LabelGuidedKMeansUtils.from_categorical(y) for y in Y])
         initial_centroids = []
         for yuniq in np.unique(Y, axis=0):
-            yuniq_idxs = [i for i,y in enumerate(Y) if y == yuniq]
-            ic = X[np.random.choice(yuniq_idxs) if rand else 0]
+            idxs = [i for i,y in enumerate(Y) if y == yuniq]
+            if mode == 'rand':
+                ic = X[np.random.choice(idxs)]
+            elif mode == 'first':
+                ic = X[0]
+            elif mode == 'mean':
+                ic = np.mean(X[idxs], axis=0)
             initial_centroids.append(ic)
         return np.array(initial_centroids)
 
