@@ -81,7 +81,7 @@ class TOTNet:
         return self.get_lower_bounds(), self.get_upper_bounds()
 
     def solve(self, timeout=default_timeout, dnc=False):
-        options = Marabou.createOptions(timeoutInSeconds=timeout, verbosity=self.__marabou_verbosity, dnc=dnc)
+        options = Marabou.createOptions(timeoutInSeconds=timeout, verbosity=self.__marabou_verbosity)
         vals, stats = self.network.solve(verbose=bool(self.__marabou_verbosity), options=options)
         assignment = ([], [])
         if len(vals) > 0:
