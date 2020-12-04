@@ -1,6 +1,6 @@
 # scad_tot ![Build & Push Docker Image](https://github.com/SharedControlAutonomousDriving/scad_tot/workflows/Build%20&%20Push%20Docker%20Image/badge.svg)
 
-CMU group's repository for "TakeOverTime" neural network &amp; verification. Affiliated with the [Safe-SCAD](https://www.york.ac.uk/assuring-autonomy/projects/safe-scad/) project.
+CMU CyLab group's repository for "TakeOverTime" neural network &amp; verification. Affiliated with the [Safe-SCAD](https://www.york.ac.uk/assuring-autonomy/projects/safe-scad/) project.
 
 ## Project Structure
 
