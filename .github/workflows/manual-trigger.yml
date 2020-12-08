@@ -12,5 +12,5 @@ jobs:
             dockerfile: docker/Dockerfile
             username: ${{ secrets.DOCKER_USER }}
             password: ${{ secrets.DOCKER_TOKEN }}
-            repository: grese/scad_tot
+            repository: SharedControlAutonomousDriving/scad_tot
             tags: latest
