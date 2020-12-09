@@ -30,7 +30,7 @@ To run importance analysis, please run the `./codes/importance-code.ipynb`.
 
 To run model re-training, please run the `./codes/network-training.ipynb`
 
-Please make sure to change the FOLDERPATH in the notebook files. If the repository is cloned to downloads then `FOLDERPATH = '/home/downloads/scad-tot/attribution/codes/`. 
+Please make sure to change the FOLDERPATH in the notebook files. If the repository is cloned to downloads then `FOLDERPATH = '/home/downloads/scad_tot/attribution/codes/`. 
 
 ## Results
 All the results of the project can be found in `./results`
