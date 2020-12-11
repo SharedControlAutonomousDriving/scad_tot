@@ -91,7 +91,7 @@ if __name__ == "__main__":
     aug_train_data = np.append(train_data, adv_samples, axis=0)
     aug_train_labels = np.append(train_data_labels, adv_sample_labels, axis=0)
     
-    # Retrain the model on the extended dataset
+    # Retrain the model on the extended dataset, without manual shuffling
     new_model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
     adv_classifier.fit(aug_train_data, aug_train_labels, nb_epochs=10, batch_size=128)
 
