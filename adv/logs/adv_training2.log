@@ -1,0 +1,25 @@
+==================================================
+Experiment : 2
+Epsilon:0.0137
+Attack: ProjectedGradientDescent
+==================================================
+Classifier with original training
+Accuracy on clean test samples: 86.15%
+==================================================
+Craft attack on training examples
+Creating adversarial samples.
+Success rate of attack: 16.55%
+==================================================
+Craft attack test examples
+Creating adversarial samples.
+Success rate of attack: 17.96%
+==================================================
+Classifier before adversarial training
+Accuracy on adversarial samples: 79.59%
+==================================================
+Classifier with adversarial training
+Accuracy on adversarial test samples: 84.60%
+==================================================
+Classifier with adversarial training
+Accuracy on clean test samples: 84.75%
+==================================================
