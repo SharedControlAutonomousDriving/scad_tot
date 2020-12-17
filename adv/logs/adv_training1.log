@@ -1,0 +1,24 @@
+==================================================
+Experiment : 1
+Epsilon:0.0159
+==================================================
+Classifier with original training
+Accuracy on clean test samples: 86.15%
+==================================================
+Craft attack on training examples
+Using model predictions as correct labels for FGM.
+Success rate of FGM attack: 8.42%
+==================================================
+Craft attack test examples
+Using model predictions as correct labels for FGM.
+Success rate of FGM attack: 9.29%
+==================================================
+Classifier before adversarial training
+Accuracy on adversarial samples: 83.45%
+==================================================
+Classifier with adversarial training
+Accuracy on adversarial test samples: 85.77%
+==================================================
+Classifier with adversarial training
+Accuracy on clean test samples: 85.12%
+==================================================
