@@ -10,9 +10,6 @@ import logging
 
 
 
-
-
-
 # Configure a logger to capture ART outputs [printed in console,the level of detail=INFO]
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -25,7 +22,6 @@ except:
     
 fileHandler = logging.FileHandler("{0}/{1}.log".format(LOG_DIR, "adv_training"))
 logger.addHandler(fileHandler)
-
 handler = logging.StreamHandler()
 formatter = logging.Formatter("[%(levelname)s] %(message)s")
 handler.setFormatter(formatter)
@@ -57,10 +53,7 @@ def save_model1(adv_model, exp):
     except:
         print("Folder may already exist.")
 
-    filename = path + 'adv_model{}.h5'.format(exp)
-    
-    # tf.keras.models.save_model(
-    # model=model, filepath=filename, overwrite=True, include_optimizer=True, save_format='h5')
+    filename = path + 'adv_model{}.h5'.format(exp)  
     adv_model.model.save(filename)
 
 
@@ -74,7 +67,6 @@ def save_samples(samples, filename, exp):
         print("Folder may already exist.")
 
     data_path = path + '{}_{}.csv'.format(filename, exp)
-
     adv_data = pd.DataFrame(samples)
     adv_data.to_csv(data_path, index=False)
 
@@ -85,21 +77,12 @@ def save_samples(samples, filename, exp):
 if __name__ == "__main__":
     exp = 0
     eps = 0.0137
+    
     logger.info("="*50)
     logger.info("Experiment : {}".format(exp))
     logger.info("Epsilon:{}".format(eps))
     logger.info("="*50)
-    
-    
-    
-    # path = os.path.join(os.getcwd(),'results/')
-    # try:
-    #     os.mkdir(path)
-    # except:
-    #     print("Folder already exists, or process failed.")
 
-
-    
     print("Loading model...\n")
     new_model = tf.keras.models.load_model("/content/drive/MyDrive/SCAD/network/models/latest/model.h5")
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
@@ -134,46 +117,28 @@ if __name__ == "__main__":
         clip_values=(0, 1),
     )
     
-    # adv_classifier = KerasClassifier(
-    #     model=new_model,
-    #     clip_values=(0, 1), use_logits=True
-        
-    # )
-    
     
     print("Creating adversarial attack object...\n")
     fgsm = FastGradientMethod(adv_classifier, norm=np.inf, eps=eps, eps_step=0.001, targeted=False, batch_size=2048, num_random_init=27)
 
-
-    # with open(path+'Exp{}.txt'.format(exp),'a') as f:
-    #     f.write("Experiment {} \n".format(exp))
-    #     f.write("-"*50)
-    #     f.write("\n")
-    #     f.write("Epsilon: {}".format(eps))
-
-        
-
+    
     print("Generating adversarial samples...\n")
     logger.info("Craft attack on training examples")
     x_train_adv = fgsm.generate(train_data)
     save_samples(x_train_adv, 'adv_train', exp)
 
+    
     logger.info("Craft attack test examples")
     x_test_adv = fgsm.generate(test_data)
     save_samples(x_test_adv, 'adv_test', exp)
-    
-    
-    
+      
 
-    
-
-    print("Evaluating adversarial samples on clean model...\n")
+    print("Evaluating adversarial samples before training...\n")
     preds = np.argmax(adv_classifier.predict(x_test_adv), axis=1)
     acc = np.sum(preds == non_encoded_test_labels) / non_encoded_test_labels.shape[0]
     logger.info("Classifier before adversarial training")
     logger.info("Accuracy on adversarial samples: %.2f%%", (acc * 100))
 
-    
     
     print("Augmenting original data with adversarial samples...\n")
     aug_train_data = np.append(train_data, x_train_adv, axis=0)
