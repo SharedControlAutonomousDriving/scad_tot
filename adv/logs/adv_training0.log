@@ -1,6 +1,7 @@
 ==================================================
 Experiment : 0
 Epsilon:0.0137
+Attack: FastGradientSignMethod
 ==================================================
 Classifier with original training
 Accuracy on clean test samples: 86.15%
