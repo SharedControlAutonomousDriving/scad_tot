@@ -80,11 +80,6 @@ def save_samples(samples, filename, exp):
 
 
 if __name__ == "__main__":
-    # exp = 0
-    # eps = 0.0137
-    
-    # exp = 1
-    # eps = 0.0159
     
     # exp = 2
     eps = 0.0137
@@ -134,18 +129,18 @@ if __name__ == "__main__":
     
     
     print("Creating adversarial attack object...\n")
-    # fgsm = FastGradientMethod(adv_classifier, norm=np.inf, eps=eps, eps_step=0.001, targeted=False, batch_size=2048, num_random_init=27)
-    fgsm = ProjectedGradientDescent(adv_classifier,norm=np.inf,eps=eps,eps_step=0.001,targeted=False,batch_size=2048,num_random_init=27)
+    
+    pgd = ProjectedGradientDescent(adv_classifier,norm=np.inf,eps=eps,eps_step=0.001,targeted=False,batch_size=2048,num_random_init=27)
 
 
     print("Generating adversarial samples...\n")
     logger.info("Craft attack on training examples")
-    x_train_adv = fgsm.generate(train_data)
+    x_train_adv = pgd.generate(train_data)
     save_samples(x_train_adv, 'pgd_train', exp)
     logger.info("="*50)
 
     logger.info("Craft attack test examples")
-    x_test_adv = fgsm.generate(test_data)
+    x_test_adv = pgd.generate(test_data)
     save_samples(x_test_adv, 'pgd_test', exp)
     logger.info("="*50)
     
