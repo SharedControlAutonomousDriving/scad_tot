@@ -109,14 +109,12 @@ if __name__ == "__main__":
     
 
     print("Creating classifier...\n")
-    adv_classifier = TensorFlowV2Classifier(
-        model=new_model,
-        loss_object=loss_object,
-        train_step=train_step,
-        nb_classes=5,
-        input_shape=(1,25),
-        clip_values=(0, 1),
-    )
+    adv_classifier = TensorFlowV2Classifier(model=new_model,
+                                            loss_object=loss_object,
+                                            train_step=train_step,
+                                            nb_classes=5,
+                                            input_shape=(1,25),
+                                            clip_values=(0, 1))
     
     
     print("Creating adversarial attack object...\n")
