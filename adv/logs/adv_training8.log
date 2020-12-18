@@ -1,0 +1,25 @@
+==================================================
+Experiment : 8
+Epsilon:0.0137
+Attack: BasicIterativeMethod
+==================================================
+Classifier with original training
+Accuracy on clean test samples: 86.15%
+==================================================
+Craft attack on training examples
+Creating adversarial samples.
+Success rate of attack: 15.89%
+==================================================
+Craft attack test examples
+Creating adversarial samples.
+Success rate of attack: 17.23%
+==================================================
+Classifier before adversarial training
+Accuracy on adversarial samples: 79.84%
+==================================================
+Classifier with adversarial training
+Accuracy on adversarial test samples: 85.68%
+==================================================
+Classifier with adversarial training
+Accuracy on clean test samples: 85.34%
+==================================================
