@@ -1,2 +1,21 @@
-Vaidehi Joshi
-vaidehij@andrew.cmu.edu 
+Name		: Vaidehi Joshi
+Andrew ID	: vaidehij@andrew.cmu.edu 
+
+
+--> Improving robustness based on counterexamples from Marabou <--
+
+1. scripts 
+i) retraining_upsample_counterexamples.py : Python script for upsampling of counterexamples and retraining of the model having the baseline architecture.
+ii) crunch.py : Once the models are verified for robustness using Marabou, this python script gives the epsilon values over all output classes along with the overall minimum epsilon value.
+
+2. models
+Retrained models for original data + upsampled data (data of counterexamples from robustness and clustering verification tasks from Marabou was upsampled)
+
+3. retraining_upsample_counterexamples.ipynb
+Python notebook for upsampling of counterexamples and retraining of the model with different chunks of data.
+
+4. All models were saved in .h5 or .pb format while training and then converted to .nnet format which is compatible with Marabou.
+
+5. All retrained models were verified for robustness using scripts from verification -> robustness.ipynb.
+
+6. Results and description are given in Results_update.pdf.
