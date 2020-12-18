@@ -23,9 +23,9 @@ __pycache__
 artifacts
 
 # Logging & Output
-logs
-.logs
-*.log
+/logs
+/.logs
+/*.log
 summary.txt
 log.txt
 
