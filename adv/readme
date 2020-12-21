@@ -7,19 +7,22 @@ Summary: A set of experiments which train with different epsilon values and adve
 
 
 1) code 
-  i. fgsm_adversarial_training.py   : script for running FGSM (Fast Gradient Sign Method) adversarial training.
-  ii. bim_training.py               : script for running BIM (Basic Iterative Method) adversarial training.
-  iii. pgd_adversarial_training.py  : script for running PGD (Projected Gradient Descent) adversarial training.
-  iv. perturbation.py               : script to visualize the accuracy/loss of clean model on FGSM adversarial examples with different epsilon values. 
+  i.    fgsm_adversarial_training.py   : script for running FGSM (Fast Gradient Sign Method) adversarial training.
+  ii.   bim_training.py                : script for running BIM (Basic Iterative Method) adversarial training.
+  iii.  pgd_adversarial_training.py    : script for running PGD (Projected Gradient Descent) adversarial training.
+  iv.   perturbation.py                : script to visualize the accuracy/loss of clean model on FGSM adversarial examples with different epsilon values. 
   
   
 2) models
-  Saved models for different experiments. Filename of model can be interpreted as: {ADV/BIM/PGD}_model{EXPERIMENT_NUMBER}.h5, where ADV is FGSM technique here.
+  Saved models for different experiments. 
+  Filename of model can be interpreted as: {ADV/BIM/PGD}_model{EXPERIMENT_NUMBER}.h5, where ADV is FGSM technique here.
   The models can be converted from .h5 to .nnet format for testing with Marabou. 
 
 
 3) logs
-  Results of the adversarial training experiments. Filename of log can be interpreted as adv_training{EXPERIMENT_NUMBER}.log. Contains the accuracies observed with that model, the method used to generate adversarial samples, and the epsilon value used. 
+  Results of the adversarial training experiments. 
+  Filename of log can be interpreted as adv_training{EXPERIMENT_NUMBER}.log. 
+  Contains the accuracies observed with that model, the method used to generate adversarial samples, and the epsilon value used. 
   
   
   
