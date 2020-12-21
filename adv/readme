@@ -1,2 +1,35 @@
 Aiswarya Vinod Kumar
 avinodku@andrew.cmu.edu 
+
+--- Adversarial training ---
+Summary: A set of experiments which train with different epsilon values and adversarial training methods such as Fast Gradient Sign Method (FGSM), Basic Iterative Method (BIM) and Projected Gradient Descent (PGD). 
+
+
+
+1) code 
+  i. fgsm_adversarial_training.py   : script for running FGSM (Fast Gradient Sign Method) adversarial training.
+  ii. bim_training.py               : script for running BIM (Basic Iterative Method) adversarial training.
+  iii. pgd_adversarial_training.py  : script for running PGD (Projected Gradient Descent) adversarial training.
+  iv. perturbation.py               : script to visualize the accuracy/loss of clean model on FGSM adversarial examples with different epsilon values. 
+  
+  
+2) models
+  Saved models for different experiments. Filename of model can be interpreted as: {ADV/BIM/PGD}_model{EXPERIMENT_NUMBER}.h5, where ADV is FGSM technique here.
+  The models can be converted from .h5 to .nnet format for testing with Marabou. 
+
+
+3) logs
+  Results of the adversarial training experiments. Filename of log can be interpreted as adv_training{EXPERIMENT_NUMBER}.log. Contains the accuracies observed with that model, the method used to generate adversarial samples, and the epsilon value used. 
+  
+  
+  
+References:
+  
+A) Kurakin, A., Goodfellow, I. J. & Bengio, S. (2016). Adversarial examples in the physical world. CoRR, abs/1607.02533.
+B) Kurakin, A., Goodfellow, I. J. & Bengio, S. Adversarial Machine Learning at Scale
+C) Ortiz, A., Fuentes, O., Dalton, R., & Kiekintveld, C.,  On the Defense Against Adversarial Examples Beyond the Visible Spectrum. 
+D) Deng, Yao et al.(2020) “An Analysis of Adversarial Attacks and Defenses on Autonomous Driving Models.” 
+  
+  
+ 
+  
