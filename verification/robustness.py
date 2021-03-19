@@ -3,8 +3,7 @@
 import os, pickle, typing
 import numpy as np
 import pandas as pd
-from verification.tot_net import TOTNet
-from verification.network import CategoricalFeatureDefinition, CategoricalFeatures, CategoricalFeatureTypes, AllowedMisclassifications
+from verification.tot_net import TOTNet, CategoricalFeatures, CategoricalFeatureTypes, AllowedMisclassifications
 from verification.utils import _set_tf_log_level, ms_since_1970, _ms_to_human, create_dirpath, _parse_onehot_features, _parse_ordinal_features, _parse_allowed_misclassifications, count_decimal_places
 from abc import ABCMeta, abstractmethod
 
@@ -131,32 +130,13 @@ class _BaseRobustness(metaclass=ABCMeta):
                 predicted_label = pred
         return epsilon, predicted_label, counterexample
     
-    def _find_epsilon_v2(self, x:np.array, y:np.array, x_index=None):
-        dplaces = count_decimal_places(self._e_interval)
-        epsilons = [round(e, dplaces+1) for e in np.arange(self._e_min, self._e_max, self._e_interval)]
-        e, l, m, h = 0, 0, 0, len(epsilons) - 1
-        counterexample, predicted_label, epsilon = None, np.argmax(y), self._e_max
-        while l < h:
-            m = (h + l) // 2
-            e = epsilons[m]
-            pred, cex = self._find_counterexample(x, y, e)
-            if cex:
-                h = m - 1
-                counterexample = cex
-                predicted_label = pred
-                epsilon = e
-            else:
-                l = m + 1
-        return epsilon, predicted_label, counterexample
-    
     def analyze(self, results_outpath:str='', counterexamples_outpath:str='', dataset_outpath:str=''):
         results, counterexamples = [], []
         X, Y = self.X, self.Y
         for i in range(X.shape[0]):
             x, y = X[i], Y[i]
             start = ms_since_1970()
-            # epsilon, pred_label, counterexample = self._find_epsilon(x, y, x_index=i)
-            epsilon, pred_label, counterexample = self._find_epsilon_v2(x, y, x_index=i)
+            epsilon, pred_label, counterexample = self._find_epsilon(x, y, x_index=i)
             actual_label = np.argmax(y)
             duration = ms_since_1970() - start
             if self._verbosity > 0:
