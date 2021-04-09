@@ -1,11 +1,11 @@
 #!./venv/bin/python3
 
-import os, pickle, typing
+import os, pickle
 import numpy as np
 import pandas as pd
-from verification.tot_net import TOTNet, CategoricalFeatures, CategoricalFeatureTypes, AllowedMisclassifications
-from verification.utils import _set_tf_log_level, ms_since_1970, _ms_to_human, create_dirpath, _parse_onehot_features, _parse_ordinal_features, _parse_allowed_misclassifications, count_decimal_places
-from abc import ABCMeta, abstractmethod
+from typing import Dict, List, Tuple
+from verification.tot_net import TOTNet, TOTNetV1, TOTNetV2, AllowedMisclassifications, Counterexample
+from verification.utils import _set_tf_log_level, ms_since_1970, _ms_to_human, create_dirpath, _parse_allowed_misclassifications, chunk_dataset, get_file_extension
 
 _set_tf_log_level()
 
@@ -15,20 +15,23 @@ DEFAULTS = dict(
     e_interval=0.0001,
     timeout=0,
     verbosity=1,
-    marabou_verbosity=0
+    marabou_verbosity=0,
+    network_version=1
     )
 
-# ============================================================
-# _BaseRobustness
-# ============================================================
-class _BaseRobustness(metaclass=ABCMeta):
+TOTNET_CLASSES = {
+    1:TOTNetV1,
+    2:TOTNetV2
+    }
+
+class LocalRobustness():
     def __init__(
         self,
         network_path:str='',
+        network_version:int=DEFAULTS['network_version'],
         network_options:dict=dict(),
         X:np.array=np.array([]),
         Y:np.array=np.array([]),
-        categorical_features:CategoricalFeatures=None,
         allowed_misclassifications:AllowedMisclassifications=None,
         e_min:float=DEFAULTS['e_min'],
         e_max:float=DEFAULTS['e_max'],
@@ -38,11 +41,15 @@ class _BaseRobustness(metaclass=ABCMeta):
         marabou_options:dict=dict(),
         marabou_verbosity:int=0
         ):
+        assert len(network_path) > 0, 'network_path is required'
+        assert network_version in TOTNET_CLASSES.keys(), 'unsupported network_version.'
+        assert X.shape[0] == Y.shape[0], 'X and Y must have same number of items'
+        assert e_min < e_max, 'e_min must be less than or equal to e_max'
         self._network_path = network_path
+        self._network_version = network_version
         self._network_options = network_options
         self._X = X
         self._Y = Y
-        self._categorical_features = categorical_features
         self._allowed_misclassifications = allowed_misclassifications
         self._e_min = e_min
         self._e_max = e_max
@@ -51,57 +58,111 @@ class _BaseRobustness(metaclass=ABCMeta):
         self._verbosity = verbosity
         self._marabou_options = marabou_options
         self._marabou_verbosity = marabou_verbosity
-        self._net = TOTNet(self._network_path,
+        self._results = None
+        self._counterexamples = []
+
+        TOTNetClass = TOTNET_CLASSES[self._network_version]
+        self._net = TOTNetClass(self._network_path,
             network_options=self._network_options,
-            categorical_features=self._categorical_features,
             marabou_options=self._marabou_options,
             marabou_verbosity=self._marabou_verbosity
             )
-        self._results = []
-        self._counterexamples = []
     
     @property
     def net(self) -> TOTNet:
+        '''net property
+
+        Returns:
+            TOTNet: the TOTNet object
+        '''
         return self._net
 
     @property
     def X(self) -> np.array:
+        '''X property
+
+        Returns:
+            np.array: the verification inputs
+        '''
         return self._X
 
     @property
     def Y(self) -> np.array:
+        '''Y property
+
+        Returns:
+            np.array: the verification outputs
+        '''
         return self._Y
     
     @property
-    def dataset(self) -> typing.Tuple[np.array, np.array]:
+    def dataset(self) -> Tuple[np.array, np.array]:
+        '''dataset property (inputs and outputs)
+
+        Returns:
+            tuple(np.array, np.array): tuple containing (X, Y)
+        '''
         return (self.X, self.Y)
 
     @property
     def results(self) -> pd.DataFrame:
+        '''results property
+
+        Returns:
+            pd.DataFrame: returns a dataframe containing verification results
+        '''
         return self._results
 
     @results.setter
     def results(self, results:pd.DataFrame):
+        '''setter for results property
+
+        Args:
+            results (pd.DataFrame): a dataframe containing results
+        '''
         self._results = results
     
-    def get_counterexample(self, x_index) -> dict:
+    def get_counterexample(self, x_index:int) -> tuple:
+        '''gets a counterexample from the sample @ x_index
+
+        Args:
+            x_index (int): index of sample in X
+
+        Returns:
+            np.array: returns the counterexample
+        '''
         return self._counterexamples[x_index]
 
-    def get_counterexamples(self, include_outputs=True):
+    def get_counterexamples(self, include_outputs=True) -> Dict[int, Counterexample]:
+        '''returns all counterexamples (and optionally includes the outputs)
+
+        Args:
+            include_outputs (bool, optional): . Defaults to True.
+
+        Returns:
+            dict: dictionary containing counterexamples
+        '''
         if include_outputs:
             return self._counterexamples
-        return [c[0] for c in self._counterexamples]
+        return {k:c[0] for k,c in self._counterexamples.items()}
     counterexamples = property(get_counterexamples)
 
     @counterexamples.setter
     def counterexamples(self, counterexamples:dict):
         self._counterexamples = counterexamples
     
-    @abstractmethod
     def _find_counterexample(self, x:np.array, y:np.array, epsilon:float) -> tuple:
-        pass
+        lbs = x-epsilon
+        ubs = x+epsilon
+        for i in self.net.ignored_features:
+            lbs[i] = x[i]
+            ubs[i] = x[i]
+        y_idx = np.argmax(y)
+        return self.net.find_counterexample(lbs, ubs, y_idx,
+            allowed_misclassifications=self._allowed_misclassifications,
+            )
     
-    def _get_predicted_label(self, actual_y, outputs:typing.List[float]) -> int:
+    def _get_predicted_label(self, actual_y, outputs:List[float]) -> int:
         maxval = max(outputs)
         for i in enumerate(outputs):
             if i != actual_y and i >= maxval:
@@ -148,11 +209,17 @@ class _BaseRobustness(metaclass=ABCMeta):
                 'epsilon':epsilon,
                 'time':duration
                 })
-            # TODO: convert counterexamples to numpy arrays
             counterexamples.append(counterexample)
         
         self.results = pd.DataFrame(results)
         self.counterexamples = counterexamples
+        if self._verbosity > 0:
+            print(f'completed analysis of {self.X.shape[0]} samples in {_ms_to_human(self.results["time"].sum())}')
+        if results_outpath or counterexamples_outpath or dataset_outpath:
+            self.save_results(results_outpath=results_outpath, counterexamples_outpath=counterexamples_outpath, dataset_outpath=dataset_outpath)
+        return self
+
+    def save_results(self, results_outpath:str='', counterexamples_outpath:str='', dataset_outpath:str=''):
         if results_outpath:
             create_dirpath(results_outpath)
             self.results.to_csv(results_outpath)
@@ -162,9 +229,6 @@ class _BaseRobustness(metaclass=ABCMeta):
         if dataset_outpath:
             create_dirpath(dataset_outpath)
             pickle.dump(self.dataset, open(dataset_outpath, 'wb'))
-        if self._verbosity > 0:
-            print(f'completed analysis of {self.X.shape[0]} samples in {_ms_to_human(self.results["time"].sum())}')
-        return self
     
     def load_results(self, results_path:str='', counterexamples_path:str='', dataset_path:str=''):
         if results_path:
@@ -174,116 +238,89 @@ class _BaseRobustness(metaclass=ABCMeta):
         if dataset_path:
             self._X, self._Y = pickle.load(open(dataset_path, 'rb'))
 
-# ============================================================
-# LocalRobustness
-# ============================================================
-class LocalRobustness(_BaseRobustness):
-    def __init__(
-        self,
-        network_path:str='',
-        network_options:dict=dict(),
-        X:np.array=np.array([]),
-        Y:np.array=np.array([]),
-        categorical_features:CategoricalFeatures=None,
-        allowed_misclassifications:AllowedMisclassifications=None,
-        e_min:float=DEFAULTS['e_min'],
-        e_max:float=DEFAULTS['e_max'],
-        e_interval:float=DEFAULTS['e_interval'],
-        timeout:int=DEFAULTS['timeout'],
-        verbosity:int=DEFAULTS['verbosity'],
-        marabou_options:dict=dict(),
-        marabou_verbosity:int=DEFAULTS['marabou_verbosity']
-        ):
-        super().__init__(
-            network_path=network_path,
-            network_options=network_options,
-            X=X,
-            Y=Y,
-            categorical_features=categorical_features,
-            allowed_misclassifications=allowed_misclassifications,
-            e_min=e_min,
-            e_max=e_max,
-            e_interval=e_interval,
-            timeout=timeout,
-            verbosity=verbosity,
-            marabou_options=marabou_options,
-            marabou_verbosity=marabou_verbosity
-            )
-
-    def _find_counterexample(self, x:np.array, y:np.array, epsilon:float) -> tuple:
-        lbs = x-epsilon
-        ubs = x+epsilon
-        y_idx = np.argmax(y)
-        return self.net.find_counterexample(lbs, ubs, y_idx,
-            allowed_misclassifications=self._allowed_misclassifications,
-            timeout=self._timeout
-            )
-
 def test_local_robustness(
     network_path:str='',
+    network_version:int=1,
+    network_options:dict=dict(),
     X:np.array=np.array([]),
     Y:np.array=np.array([]),
+    chunksize:int=None,
     e_min:float=DEFAULTS['e_min'],
     e_max:float=DEFAULTS['e_max'],
     e_interval:float=DEFAULTS['e_interval'],
-    categorical_features=[],
     allowed_misclassifications=[],
     timeout:int=DEFAULTS['timeout'],
+    marabou_options:dict=dict(),
+    marabou_verbosity:int=0,
     out_dir:str='./results'
     ):
-    results_outpath = os.path.join(out_dir, './results.csv'),
-    counterexamples_outpath = os.path.join(out_dir, './counterexamples.p'),
 
-    lr = LocalRobustness(
-        network_path=network_path,
-        X=X,
-        Y=Y,
-        e_min=e_min,
-        e_max=e_max,
-        e_interval=e_interval,
-        categorical_features=categorical_features,
-        allowed_misclassifications=allowed_misclassifications,
-        timeout=timeout
-        )
-    
-    # TODO: pickle entire LocalRobustness object (or as much as possible)
-    lr.analyze(
-        results_outpath=results_outpath,
-        counterexamples_outpath=counterexamples_outpath
-        )
+    is_chunked = chunksize is not None
+    chunksize = chunksize if is_chunked else X.shape[0]
+    chunks = list(chunk_dataset(X, Y, chunksize))
+    get_out_dir = lambda chunk_i: f'{out_dir}' + (f'/chunk_{chunk_i}' if is_chunked else '')
+
+    for i in len(chunks):
+        Xc, Yc = chunks[i]
+        results_outpath = os.path.join(get_out_dir(i), './results.csv'),
+        counterexamples_outpath = os.path.join(get_out_dir(i), './counterexamples.p'),
+        lr = LocalRobustness(
+            network_path=network_path,
+            network_version=network_version,
+            network_options=network_options,
+            X=Xc,
+            Y=Yc,
+            e_min=e_min,
+            e_max=e_max,
+            e_interval=e_interval,
+            allowed_misclassifications=allowed_misclassifications,
+            timeout=timeout,
+            marabou_options=marabou_options,
+            marabou_verbosity=marabou_verbosity
+            )
+        # TODO: pickle entire LocalRobustness object (or as much as possible)
+        lr.analyze(
+            results_outpath=results_outpath,
+            counterexamples_outpath=counterexamples_outpath
+            )
 
 def _main(
     network_path:str,
+    network_version:int,
     dataset_path:str,
     chunksize:int=None,
     e_min:float=DEFAULTS['e_min'],
     e_max:float=DEFAULTS['e_max'],
     e_interval:float=DEFAULTS['e_interval'],
     timeout:int=DEFAULTS['timeout'],
-    onehot_features:typing.List[str]=[],
-    ordinal_features:typing.List[str]=[],
-    allowed_misclassifications:typing.List[str]=[],
+    allowed_misclassifications:List[str]=[],
+    use_milp:bool=False,
     out_dir:str='./results'
     ):
 
     X, Y = pickle.load(open(dataset_path, 'rb'))
-    # TODO: Add support for excluded feature combinations
-    onehot_features = [{'type':CategoricalFeatureTypes.ONEHOT, 'definition':d} for d in _parse_onehot_features(onehot_features)]
-    ordinal_features = [{'type':CategoricalFeatureTypes.ORDINAL, 'definition':d} for d in _parse_ordinal_features(ordinal_features)]
-    categorical_features = CategoricalFeatures(onehot_features + ordinal_features)
     allowed_misclassifications = _parse_allowed_misclassifications(allowed_misclassifications)
-    # TODO: Handle Chunksize
+
+    # Pass the appropriate options to marabou if loading a tensorflow model instead of .nnet
+    network_ext = get_file_extension(network_path)
+    network_options = dict() if network_ext == '.nnet' else dict(modelType='savedModel_v2')
+
+    # Setup the arguments for MILP solving
+    marabou_options = dict(solveWithMILP=True, milpTightening='none') if use_milp else dict()
 
     test_local_robustness(
         network_path=network_path,
+        network_version=network_version,
+        network_options=network_options,
         X=X,
         Y=Y,
+        chunksize=chunksize,
         e_min=e_min,
         e_max=e_max,
         e_interval=e_interval,
         timeout=timeout,
-        categorical_features=categorical_features,
         allowed_misclassifications=allowed_misclassifications,
+        marabou_options=marabou_options,
         out_dir=out_dir
         )
 
@@ -293,48 +330,64 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-n', '--networkpath',
         required=True,
-        help='Path to network')
+        help='Path to network'
+        )
+    parser.add_argument('-nv', '--networkversion',
+        type=int,
+        default=1,
+        help='version of the network (1 or 2)'
+        )
     parser.add_argument('-d', '--datasetpath',
         required=True,
-        help='Path to pickle containing dataset (X, Y)')
+        help='Path to pickle containing dataset (X, Y)'
+        )
     parser.add_argument('-c', '--chunksize',
         type=int,
         default=None,
-        help='Analyze dataset in chunks of chunksize.')
+        help='Analyze dataset in chunks of chunksize.'
+        )
     parser.add_argument('-en', '--emin',
         default=DEFAULTS['e_min'],
-        help='Minimum epsilon')
+        help='Minimum epsilon'
+        )
     parser.add_argument('-ex', '--emax',
         default=DEFAULTS['e_max'],
-        help='Maximum epsilon')
-    parser.add_argument('-ei', '--eint',
+        help='Maximum epsilon'
+        )
+    parser.add_argument('-et', '--eint',
         default=DEFAULTS['e_interval'],
-        help='Interval between epsilons (precision)')
+        help='Interval between epsilons (precision)'
+        )
     parser.add_argument('-t', '--timeout',
         default=DEFAULTS['timeout'],
-        help='Timeout for marabou queries')
-    parser.add_argument('-o', '--onehotfeatures',
-        nargs='*',
-        default=[],
-        help='Onehot encoded features. Onehot indexes separated by comma; Multiple onehots separated by space. (e.g. 1,2,3 7,8)')
+        help='Timeout for marabou queries'
+        )
     parser.add_argument('-a', '--allowedmisclassifications',
         nargs='*',
         default=[],
-        help='Allowed misclassifications (for targeted queries). Actual and allowed class separated by comma; Multiple items separated by space. (e.g. 4,3 2,1)')
+        help='Allowed misclassifications (for targeted queries). Actual and allowed class separated by comma; Multiple items separated by space. (e.g. 4,3 2,1)'
+        )
+    parser.add_argument('-m', '--milp',
+        default=False,
+        action='store_true',
+        help='Use Marabou\'s MILP solver'
+        )
     parser.add_argument('-o', '--outdir',
         default='./results',
-        help='Output directory for results')
+        help='Output directory for results'
+        )
     args = parser.parse_args()
 
     _main(
-        network_path=args.networkpath,
-        dataset_path=args.datasetpath,
+        args.networkpath,
+        args.networkversion,
+        args.datasetpath,
         chunksize=args.chunksize,
         e_min=args.emin,
         e_max=args.emax,
         e_interval=args.eint,
         timeout=args.timeout,
-        onehot_features=args.onehotfeatures,
         allowed_misclassifications=args.allowedmisclassifications,
+        use_milp=args.milp,
         out_dir=args.outdir
         )

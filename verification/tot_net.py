@@ -89,6 +89,12 @@ Example: Allow the 0 class to be predicted as 2
 (0, 2)
 '''
 
+Counterexample = Dict[np.array, np.array]
+'''Defines a counterexample (discovered by marabou)
+
+Syntax: (INPUTS, OUTPUTS)
+'''
+
 class CategoricalFeatureTypes(str, enum.Enum):
     '''Types of categorical features'''
     ONEHOT='onehot'
@@ -181,13 +187,13 @@ class CategoricalFeatures:
     combos = property(get_combos)
 
 class AllowedMisclassifications:
-    '''Defines misclassifications allowed during verification (e.g. TargetedRobustness)
+    '''Defines misclassifications allowed during verification (for Targeted Robustness)
     
     Args:
         definitions (List[AllowedMisclassificationDefinition]): Definitions for the allowed misclassifications
     
     Returns:
-        AllowedMisclassifications: the AllowedMisclassifications object instance
+        AllowedMisclassifications: AllowedMisclassifications object instance
     '''
 
     def __init__(self, definitions:List[AllowedMisclassificationDefinition]):
@@ -214,6 +220,7 @@ class TOTNet:
         network_path (str): path to network (nnet, pb, or onnx)
         network_options (dict): options passed to MarabouNetwork constructor
         categorical_features (CategoricalFeatures): object defining the network's categorical features
+        ignored_features (List[int]): features which are not perturbed during verification.
         marabou_verbosity (int): amount of marabou logging
         marabou_logdir (str): directory where marabou logs should be stored
         marabou_options (dict): options passed to Marabou.marabouOptions
@@ -227,20 +234,42 @@ class TOTNet:
     def __init__(self,
         network_path:str,
         network_options:dict=dict(),
+        feature_names:tuple=tuple(),
         categorical_features:CategoricalFeatures=None,
+        ignored_features:List[int]=[],
         marabou_verbosity:int=0,
         marabou_logdir:str='./',
         marabou_options:dict=dict(),
         timeout:int=0
         ):
-        self.__network_path = network_path
-        self.__network_options = network_options
-        self.__categorical_features = CategoricalFeatures([]) if categorical_features is None else categorical_features
-        self.__marabou_verbosity = marabou_verbosity
-        self.__marabou_options = marabou_options
-        self.__marabou_logfile = os.path.join(marabou_logdir, 'marabou.log') if marabou_logdir else None
-        self.__marabou_timeout = timeout
+        self._network_path = network_path
+        self._network_options = network_options
+        self._feature_names = feature_names
+        self._categorical_features = CategoricalFeatures([]) if categorical_features is None else categorical_features
+        self._ignored_features = ignored_features
+        self._marabou_verbosity = marabou_verbosity
+        self._marabou_options = marabou_options
+        self._marabou_logfile = os.path.join(marabou_logdir, 'marabou.log') if marabou_logdir else None
+        self._marabou_timeout = timeout
         self.network = self._load_network()
+
+    @property
+    def features(self) -> tuple:
+        '''features property
+
+        Returns:
+            tuple: Names of each feature
+        '''
+        return self._feature_names
+    
+    @property
+    def ignored_features(self) -> tuple:
+        '''ignored_features property
+
+        Returns:
+            tuple: indexes of features which won't be perturbed.
+        '''
+        return tuple(self._ignored_features)
 
     @property
     def num_inputs(self) -> int:
@@ -292,7 +321,8 @@ class TOTNet:
         '''
         assert len(scaled_values) == self.num_inputs, 'number of lower bound vals must be equal to num_inputs'
         for x,v in enumerate(scaled_values):
-            self.set_input_lower_bound(x, v)
+            if v is not None:
+                self.set_input_lower_bound(x, v)
 
     def set_upper_bounds(self, scaled_values:Iterable[Number]):
         '''Sets upper bounds for each of the network's inputs
@@ -302,7 +332,8 @@ class TOTNet:
         '''
         assert len(scaled_values) == self.num_inputs, 'number of upper bound vals must be equal to num_inputs'
         for x,v in enumerate(scaled_values):
-            self.set_input_upper_bound(x, v)
+            if v is not None:
+                self.set_input_upper_bound(x, v)
 
     def set_input_lower_bound(self, x_index:int, scaled_value:Number):
         '''Sets the lower bound for one of the network's inputs
@@ -348,8 +379,8 @@ class TOTNet:
         Returns:
             Tuple[Tuple[List[Number], List[Number]], MarabouCore.Statistics]: tuple containing a counterexample and marabou statistics.
         '''
-        options = {'timeoutInSeconds': self.__marabou_timeout, 'verbosity': self.__marabou_verbosity, **self.__marabou_options}
-        vals, stats = self.network.solve(verbose=bool(self.__marabou_verbosity), options=Marabou.createOptions(**options))
+        options = {'timeoutInSeconds': self._marabou_timeout, 'verbosity': self._marabou_verbosity, **self._marabou_options}
+        vals, stats = self.network.solve(verbose=bool(self._marabou_verbosity), options=Marabou.createOptions(**options))
         assignment = ([], [])
         if len(vals) > 0:
             for i in range(self.num_inputs):
@@ -358,7 +389,7 @@ class TOTNet:
                 assignment[1].append(vals[self.get_output_var(i)])
         return assignment, stats
     
-    def find_counterexample(self, lbs:Iterable[Number], ubs:Iterable[Number], y:int, allowed_misclassifications:AllowedMisclassifications=None):
+    def find_counterexample(self, lbs:Iterable[Number], ubs:Iterable[Number], y:int, allowed_misclassifications:AllowedMisclassifications=None) -> Tuple[int, Counterexample]:
         '''Finds any counterexamples within the specified bounds where the network's output is not 'y' or one of the 'allowed_misclassifications'.
 
         Args:
@@ -376,11 +407,7 @@ class TOTNet:
         assert len(lbs) == len(ubs) == self.num_inputs, 'lbs and ubs must be same size a num_inputs'
         assert y < self.num_outputs, 'y must be less that num_outputs'
 
-        def _cex_to_numpy(vals:Tuple[Iterable[Number], Iterable[Number]]) -> Tuple[np.array, np.array]:
-            inputs, outputs = vals
-            return (np.array(inputs), np.array(outputs))
-
-        def _solve_for_output(y, _lbs:Iterable[Number], _ubs:Iterable[Number]) -> Tuple[Iterable[Number], Iterable[Number]]:
+        def _solve_for_output(y, _lbs:Iterable[Number], _ubs:Iterable[Number]) -> Counterexample:
             '''helper function to solve for a given output'''
             self.reset()
             self.set_lower_bounds(_lbs)
@@ -390,25 +417,28 @@ class TOTNet:
             # TODO: look into returning & saving statistics
             vals, stats = result
             if stats.hasTimedOut():
-                raise MarabouTimeoutError(stats, f'Marabou query exceeded timeout of {timeout}.')
-            return vals
+                raise MarabouTimeoutError(stats, f'Marabou query exceeded timeout of {self._marabou_timeout}.')
+            inputs, outputs = vals
+            return (np.array(inputs), np.array(outputs))
 
         y_idxs = [oy for oy in range(self.num_outputs) if oy != y]
         for y_idx in y_idxs:
-            if self.__categorical_features is not None and len(self.__categorical_features.combos) > 0:
+            if len(self._categorical_features.combos) > 0:
                 # for networks with categorical features, solve a query for each possible combination.
-                for combo in self.__categorical_features.combos:
+                for combo in self._categorical_features.combos:
                     combo = {f:fval for f,fval in combo}
                     _lbs = [combo.get(x, v) for x,v in enumerate(lbs)]
                     _ubs = [combo.get(x, v) for x,v in enumerate(ubs)]
-                    vals = _solve_for_output(y_idx, _lbs, _ubs)
-                    if any(vals):
-                        return y_idx, _cex_to_numpy(vals)
+                    cex = _solve_for_output(y_idx, _lbs, _ubs)
+                    cex_inputs, cex_outputs = cex
+                    if np.any(cex_inputs) or np.any(cex_outputs):
+                        return y_idx, cex
             else:
                 # for networks without categorical features, just a single query per output.
-                vals = _solve_for_output(y_idx, lbs, ubs)
-                if any(vals):
-                    return y_idx, _cex_to_numpy(vals)
+                cex = _solve_for_output(y_idx, lbs, ubs)
+                cex_inputs, cex_outputs = cex
+                if np.any(cex_inputs) or np.any(cex_outputs):
+                    return y_idx, cex
         return y, None
 
     def check_prediction(self, x:Iterable[Number], y:int) -> bool:
@@ -435,7 +465,7 @@ class TOTNet:
         Returns:
             Iterable[Number]: The network's prediction.
         '''
-        options = Marabou.createOptions(verbosity=bool(self.__marabou_verbosity > 1))
+        options = Marabou.createOptions(verbosity=bool(self._marabou_verbosity > 1))
         return self.network.evaluate([x], options=options)[0]
 
     def reset(self):
@@ -450,23 +480,96 @@ class TOTNet:
             Marabou.MarabouNetwork: the MarabouNetwork object instance.
         '''
         valid_exts = ('.nnet', '', '.pb', '.onnx')
-        ext = get_file_extension(self.__network_path)
+        ext = get_file_extension(self._network_path)
         assert ext in valid_exts, 'Model must be in nnet, pb, or onnx format'
         if ext == '.nnet':
-            return Marabou.read_nnet(self.__network_path, **self.__network_options)
+            return Marabou.read_nnet(self._network_path, **self._network_options)
         elif ext in ('', '.pb'):
-            return Marabou.read_tf(self.__network_path, **self.__network_options)
+            return Marabou.read_tf(self._network_path, **self._network_options)
         elif ext == '.onnx':
-            return Marabou.read_onnx(self.__network_path, **self.__network_options)
+            return Marabou.read_onnx(self._network_path, **self._network_options)
         return None
+
+class TOTNetV1(TOTNet):
+    def __init__(self,
+        network_path:str,
+        network_options:dict=dict(),
+        marabou_verbosity:int=0,
+        marabou_logdir:str='./',
+        marabou_options:dict=dict(),
+        timeout:int=0
+        ):
+        feature_names = (
+            'FixationDuration', 'FixationSeq', 'FixationStart', 'FixationX', 
+            'FixationY', 'GazeDirectionLeftZ', 'GazeDirectionRightZ', 'PupilLeft', 
+            'PupilRight', 'InterpolatedGazeX', 'InterpolatedGazeY', 'AutoThrottle', 
+            'AutoWheel', 'CurrentThrottle', 'CurrentWheel', 'Distance3D', 'MPH', 
+            'ManualBrake', 'ManualThrottle', 'ManualWheel', 'RangeW', 'RightLaneDist', 
+            'RightLaneType', 'LeftLaneDist', 'LeftLaneType'
+            )
+
+        categorical_features = CategoricalFeatures([
+            {'type': CategoricalFeatureTypes.ORDINAL, 'definition':(22, (0.1844895800457542, -5.615958110066326, -2.715734265010286, -8.516181955122367))}, # RightLaneType
+            {'type': CategoricalFeatureTypes.ORDINAL, 'definition':(24, (-0.1623221645152569, 5.48060923307527, 11.123540630665795, -5.805253562105784))}   # LeftLaneType
+            ])
+        ignored_features = [22, 24]
+
+        super().__init__(
+            network_path=network_path,
+            network_options=network_options,
+            feature_names=feature_names,
+            categorical_features=categorical_features,
+            ignored_features=ignored_features,
+            marabou_verbosity=marabou_verbosity,
+            marabou_logdir=marabou_logdir,
+            marabou_options=marabou_options,
+            timeout=timeout
+            )  
+
+class TOTNetV2(TOTNet):
+    def __init__(self,
+        network_path:str,
+        network_options:dict=dict(),
+        marabou_verbosity:int=0,
+        marabou_logdir:str='./',
+        marabou_options:dict=dict(),
+        timeout:int=0
+        ):
+
+        feature_names = [
+            'FixationDuration', 'FixationStart', 'FixationX', 'FixationY', 'GazeDirectionLeftZ', 'GazeDirectionRightZ', 
+            'PupilLeft', 'PupilRight', 'InterpolatedGazeX', 'InterpolatedGazeY', 'AutoThrottle', 'AutoWheel', 'CurrentThrottle',
+             'CurrentWheel', 'Distance3D', 'MPH', 'RMSSD', 'ManualBrake', 'ManualThrottle', 'ManualWheel', 'RightLaneDist',
+             'LeftLaneDist', 'LeftLaneType_1.0', 'LeftLaneType_2.0', 'RightLaneType_1.0', 'RightLaneType_3.0', 'NDTask_Cell',
+             'NDTask_Question', 'NDTask_Reading', 'NDTask_Talk']
+
+        categorical_features = CategoricalFeatures([
+            {'type': CategoricalFeatureTypes.ONEHOT, 'definition':(22, 23)},         # LeftLaneType
+            {'type': CategoricalFeatureTypes.ONEHOT, 'definition':(24, 25)},         # RightLaneType
+            {'type': CategoricalFeatureTypes.ONEHOT, 'definition':(26, 27, 28, 29)}  # NDTask
+            ])
+        # ignore LeftLaneType & RightLaneType
+        ignored_features = [22, 23, 24, 25, 26, 27, 28, 29]
+
+        super().__init__(
+            network_path=network_path,
+            network_options=network_options,
+            feature_names=feature_names,
+            categorical_features=categorical_features,
+            marabou_verbosity=marabou_verbosity,
+            marabou_logdir=marabou_logdir,
+            marabou_options=marabou_options,
+            timeout=timeout
+            )
 
 class TOTNetUtils:
     @staticmethod
-    def filter_incorrect_samples(network_path:str, X:np.array, Y:np.array, network_options:dict=dict()) -> Tuple[np.array, np.array]:
+    def filter_incorrect_samples(model_path:str, model_version:int=1, X:np.array=np.array([]), Y:np.array=np.array([]), network_options:dict=dict()) -> Tuple[np.array, np.array]:
         '''Filters out any incorrectly predicted samples from X and Y.
 
         Args:
-            network_path (str): path to network
+            model_path (str): path to network
+            model_version (str): path to network
             X (np.array): multiple input samples
             Y (np.array): multiple output samples
             network_options (dict, optional): options passed to MarabouNetwork. Defaults to dict().
@@ -474,15 +577,15 @@ class TOTNetUtils:
         Returns:
             Tuple[np.array, np.array]: tuple containing np.array of inputs and np.array of outputs
         '''
-        ext = get_file_extension(network_path)
+        ext = get_file_extension(model_path)
         correct_indexes = []
         if ext in ('.nnet', '.onnx'):
             # For NNet & ONNX models, use Marabou's 'evaluate' to make predictions
-            network = TOTNet(network_path, network_options=network_options)
+            network = TOTNet(model_path, network_options=network_options)
             correct_indexes = [i for i in range(X.shape[0]) if np.argmax(softargmax(network.evaluate(X[i]))) == np.argmax(Y[i])]
         elif ext in ('', '.pb', '.h5', '.hdf5'):
             # For Tensorflow models, use Tensorflow's 'predict' to make predictions (much faster)
-            model = tf.keras.models.load_model(network_path)
+            model = tf.keras.models.load_model(model_path)
             Y_p = model.predict(X)
             correct_indexes = [i for i in range(Y_p.shape[0]) if np.argmax(softargmax(Y_p[i])) == np.argmax(Y[i])]
         return np.array([X[i] for i in correct_indexes]), np.array([Y[i] for i in correct_indexes])
