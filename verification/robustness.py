@@ -1,286 +1,393 @@
 #!./venv/bin/python3
 
-import os
+import os, pickle
 import numpy as np
-from argparse import ArgumentParser
-from utils import create_logger, create_dirpath, count_decimal_places, ms_since_1970, TOTUtils
-from tot_net import TOTNet
-from scipy.spatial import distance
+import pandas as pd
+from typing import Dict, List, Tuple
+from verification.tot_net import TOTNet, TOTNetV1, TOTNetV2, AllowedMisclassifications, Counterexample
+from verification.utils import _set_tf_log_level, ms_since_1970, _ms_to_human, create_dirpath, _parse_allowed_misclassifications, chunk_dataset, get_file_extension
 
-default_outdir = './logs/robustness'
-default_emin = 0.0001
-default_emax = 100.0
-default_timeout = 0
-logger = create_logger('robustness', logdir=default_outdir)
+_set_tf_log_level()
 
-def save_local_robustness_results_to_csv(results, samples, outdir):
-    '''
-    saves local robustness summary and detailed results in csv format.
-    '''
-    n_inputs, n_outputs = len(samples[0][0]), len(samples[0][1])
+DEFAULTS = dict(
+    e_min=0.0,
+    e_max=1.0,
+    e_interval=0.0001,
+    timeout=0,
+    verbosity=1,
+    marabou_verbosity=0,
+    network_version=1
+    )
 
-    summary_lines = ['leps,ueps\n']
-    details_lines = [
-        's,leps,ueps,spred,' + 
-        ','.join([f'cex_x{x}' for x in range(n_inputs)] + [f'cex_y{y}' for y in range(n_outputs)]) +
-        '\n']
-    summary, details = results
-    summary_lines.append(','.join([str(summary[0]), str(summary[1])])+'\n')
-    for s,detail in enumerate(details):
-        leps, ueps, spred, cex = detail[0], detail[1], samples[s][1].index(max(samples[s][1])), detail[2]
-        cex = cex[0] if cex else ([0 for i in range(n_inputs)], [0 for i in range(n_outputs)])
-        details_lines.append(','.join([str(s), str(leps), str(ueps), str(spred)] + [str(x) for x in cex[0]] + [str(y) for y in cex[1]]) + '\n')
-    create_dirpath(outdir)
-    summary_file = os.path.join(outdir, 'local_summary.csv')
-    details_file = os.path.join(outdir, 'local_details.csv')
-    with open(summary_file, 'w') as f:
-        f.writelines(summary_lines)
-        logger.info(f'wrote summary to {summary_file}')
-    with open(details_file, 'w') as f:
-        f.writelines(details_lines)
-        logger.info(f'wrote detils to {details_file}')
+TOTNET_CLASSES = {
+    1:TOTNetV1,
+    2:TOTNetV2
+    }
 
-def find_counterexample(net, sample, epsilon, asym_side='', target_y=None, allowed_misclassifications=[], timeout=default_timeout, verbose=0):
-    '''
-    finds counterexample where classification changed for a given epsilon. None if no counterexamples found.
-    '''
-    inputs, outputs = sample
-    l_epsilon = 0 if asym_side and asym_side == 'u' else epsilon
-    u_epsilon = 0 if asym_side and asym_side == 'l' else epsilon
-    # asym mode adjusts lower or upper side individually
-    lbs = [x-l_epsilon for x in inputs]
-    ubs = [x+u_epsilon for x in inputs]
-    y_idx = outputs.index(max(outputs)) if target_y is None else target_y
-    return net.find_counterexample(lbs, ubs, y_idx, inverse=(target_y is not None), allowed_misclassifications=allowed_misclassifications, timeout=timeout)
+class LocalRobustness():
+    def __init__(
+        self,
+        network_path:str='',
+        network_version:int=DEFAULTS['network_version'],
+        network_options:dict=dict(),
+        X:np.array=np.array([]),
+        Y:np.array=np.array([]),
+        allowed_misclassifications:AllowedMisclassifications=None,
+        e_min:float=DEFAULTS['e_min'],
+        e_max:float=DEFAULTS['e_max'],
+        e_interval:float=DEFAULTS['e_interval'],
+        timeout:int=DEFAULTS['timeout'],
+        verbosity:int=DEFAULTS['verbosity'],
+        marabou_options:dict=dict(),
+        marabou_verbosity:int=0
+        ):
+        assert len(network_path) > 0, 'network_path is required'
+        assert network_version in TOTNET_CLASSES.keys(), 'unsupported network_version.'
+        assert X.shape[0] == Y.shape[0], 'X and Y must have same number of items'
+        assert e_min < e_max, 'e_min must be less than or equal to e_max'
+        self._network_path = network_path
+        self._network_version = network_version
+        self._network_options = network_options
+        self._X = X
+        self._Y = Y
+        self._allowed_misclassifications = allowed_misclassifications
+        self._e_min = e_min
+        self._e_max = e_max
+        self._e_interval = e_interval
+        self._timeout = timeout
+        self._verbosity = verbosity
+        self._marabou_options = marabou_options
+        self._marabou_verbosity = marabou_verbosity
+        self._results = None
+        self._counterexamples = []
 
-def find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='', target_y=None, timeout=default_timeout, verbose=0):
-    '''
-    finds coarse lower and upper bounds for epsilon
-    '''
-    # count num places in decimal and mantissa
-    dplaces = count_decimal_places(e_prec)
-    mplaces = len(str(int(e_max)))
-    # iterate through decimal places in reverse (e.g. 0.001, 0.01, 0.1, 1.0, 10.0)
-    for dp in range(dplaces, -mplaces, -1):
-        lb = round(1/(10**(dp+1)), (dp+1))
-        ub = round(1/(10**dp), dp)
-        epsilons = [round(e, dp+1) for e in np.arange(lb, ub, lb)]
-        if verbose > 1: logger.info(f'searching {len(epsilons)} coarse {asym_side+"_" if asym_side else ""}epsilons b/t {epsilons[0]} and {epsilons[-1]}')
-        for i,e in enumerate(epsilons):
-            counterexample = find_counterexample(net, sample, e, asym_side=asym_side, target_y=target_y, timeout=timeout, verbose=verbose)
-            if counterexample:
-                # return epsilon lower & upper bounds if counterexample was found
-                e_lb = epsilons[i-1] if i > 0 else round(e-(lb/10), dp+2)
-                e_ub = e
-                return (e_lb, e_ub)
-    return (e_min, e_max)
-
-def find_epsilon(net, sample, e_min, e_max, e_prec, asym_side='', target_y=None, allowed_misclassifications=[], timeout=default_timeout, verbose=0):
-    '''
-    finds epsilon value within specified bounds by binary search at precision
-    '''
-    dplaces = count_decimal_places(e_prec)
-    epsilons = [round(e, dplaces+1) for e in np.arange(e_min, e_max, e_prec)]
-    if verbose > 1: logger.info(f'searching {len(epsilons)} {asym_side+"_" if asym_side else ""}epsilons b/t {epsilons[0]} and {epsilons[-1]}')
-    e = 0
-    l = 0
-    m = 0
-    h = len(epsilons) - 1
-    counterexample = None
-    epsilon = None
-    while l < h:
-        m = (h + l) // 2
-        e = epsilons[m]
-        cex = find_counterexample(net, sample, e, asym_side=asym_side, target_y=target_y, timeout=timeout, verbose=verbose, allowed_misclassifications=allowed_misclassifications)
-        if cex:
-            h = m - 1
-            counterexample = cex
-        else:
-            l = m + 1
-            epsilon = e
-    if counterexample:
-        return (epsilon, counterexample) if epsilon is not None else (round(e-e_prec, dplaces), counterexample)
-    return (0, (([], []), None))
-
-def test_local_robustness(nnet_path, samples, e_min=0.00001, e_max=100, e_prec=None, asym=False, coarse_pass=True, save_results=False, save_samples=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
-    if not e_prec:
-        dp_prec = count_decimal_places(e_min)+1
-        e_prec = round(1/(10**dp_prec), dp_prec)
-    assert(e_prec < e_min)
-    net = TOTNet(nnet_path)
-    start = ms_since_1970()
-    epsilons = []
-    for s,sample in enumerate(samples):
-        sid = f's{s}'
-        if asym:
-            l_ce_lb, l_ce_ub = (e_min, e_max), (e_min, e_max)
-            if coarse_pass:
-                # find coarse bounds for lower epsilon
-                step_start = ms_since_1970()
-                l_ce_lb, l_ce_ub = find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f'{sid} lower epsilon coarse bounds: {l_ce_lb, l_ce_ub} ({ms_since_1970() - step_start}ms)')
-                # find coarse bounds for upper epsilon
-                step_start = ms_since_1970()
-                u_ce_lb, u_ce_ub = find_epsilon_bounds(net, sample, e_min, e_max, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f'{sid} upper epsilon coarse bounds: {u_ce_lb, u_ce_ub} ({ms_since_1970() - step_start}ms)')
-            # find lower epsilon within coarse bounds
-            step_start = ms_since_1970()
-            le, counterexample = find_epsilon(net, sample, l_ce_lb, l_ce_ub, e_prec, asym_side='l', timeout=timeout, verbose=verbose)
-            if verbose > 0: logger.info(f'{sid} lower epsilon: {le} ({ms_since_1970() - step_start}ms)')
-            # find upper epsilon within coarse bounds
-            step_start = ms_since_1970()
-            ue, counterexample = find_epsilon(net, sample, u_ce_lb, u_ce_ub, e_prec, asym_side='u', timeout=timeout, verbose=verbose)
-            if verbose > 0: logger.info(f'{sid} upper epsilon: {ue} ({ms_since_1970() - step_start}ms)')
-            epsilons.append((le, ue, counterexample))
-        else:
-            ce_lb, ce_ub = e_min, e_max
-            if coarse_pass:
-                # find coarse bounds for epsilon
-                step_start = ms_since_1970()
-                ce_lb, ce_ub = find_epsilon_bounds(net, sample, e_min, e_max, e_prec, timeout=timeout, verbose=verbose)
-                if verbose > 1: logger.info(f'{sid} coarse epsilon bounds: {ce_lb, ce_ub} ({ms_since_1970() - step_start}ms)')
-            # find epsilon within coarse bounds
-            step_start = ms_since_1970()
-            epsilon, counterexample = find_epsilon(net, sample, ce_lb, ce_ub, e_prec, timeout=timeout, verbose=verbose)
-            if verbose > 0: logger.info(f'{sid} epsilon: {epsilon} ({ms_since_1970() - step_start}ms)')
-            # update running min epislon
-            epsilons.append((epsilon, epsilon, counterexample))
-    # save and return test results
-    leps = [le for le,_,_ in epsilons if le != 0]
-    ueps = [ue for _,ue,_ in epsilons if ue != 0]
-    summary = (-min(leps if leps else [0]), min(ueps if ueps else [0]))
-    results = (summary, epsilons)
-    logger.info(('asymm ' if asym else '') + f'local robustness: {summary} ({ms_since_1970() - start}ms)')
-    if save_results: save_local_robustness_results_to_csv(results, samples, outdir)
-    if save_samples: TOTUtils.save_samples_to_csv(samples, outdir)
-    return results
-
-def check_local_robustness(nnet_path, samples, results, asym=False, outdir=default_outdir, timeout=default_timeout, verbose=0):
-    def check_epsilons(net, sample, le, ue, asym=False):
-        cexs = []
-        if asym:
-            cexs = (
-                find_counterexample(net, sample, le, asym_side='l', verbose=verbose),
-                find_counterexample(net, sample, ue, asym_side='u', verbose=verbose)
+        TOTNetClass = TOTNET_CLASSES[self._network_version]
+        self._net = TOTNetClass(self._network_path,
+            network_options=self._network_options,
+            marabou_options=self._marabou_options,
+            marabou_verbosity=self._marabou_verbosity
             )
-        else:
-            cexs = find_counterexample(net, sample, ue, verbose=verbose)
-        return cexs
     
-    net = TOTNet(nnet_path)
-    check_results = {}
-    le, ue = results[0]
-    for s,sample in enumerate(samples):
-        sid = f's{s}'
-        cexs = check_epsilons(net, sample, le, ue, asym=asym)
-        check_results[sid] = cexs
+    @property
+    def net(self) -> TOTNet:
+        '''net property
+
+        Returns:
+            TOTNet: the TOTNet object
+        '''
+        return self._net
+
+    @property
+    def X(self) -> np.array:
+        '''X property
+
+        Returns:
+            np.array: the verification inputs
+        '''
+        return self._X
+
+    @property
+    def Y(self) -> np.array:
+        '''Y property
+
+        Returns:
+            np.array: the verification outputs
+        '''
+        return self._Y
     
-    n_cexs = len([c for c in check_results.values() if c]) if not asym else len([c for c in check_results.values() if c[0] or c[1]])
-    if not n_cexs:
-        if verbose > 0: logger.info(f'{sid} ok {le, ue}')
-    else:
-        if verbose > 0: logger.info(f'counterexamples found for {n_cexs} samples {le, ue}\n{check_results}')
-    return check_results
+    @property
+    def dataset(self) -> Tuple[np.array, np.array]:
+        '''dataset property (inputs and outputs)
 
-def test_targeted_robustness(nnet_path, samples, y, target_y, s_epsilons=[], e_min=0.0001, e_max=100, e_prec=0.00001, asym=False, coarse_pass=True, timeout=0, verbose=0):
-    if s_epsilons:
-        assert(len(samples) == len(s_epsilons))
-    else:
-        s_epsilons = [e_min for _ in samples]
-    target_samples = {s:(i,o) for s,(i,o) in enumerate(samples) if o.index(1) == y}
-    epsilon_bounds = {s:(s_epsilons[s], e_max) for s in target_samples}
-    net = TOTNet(nnet_path)
-    results = {}
-    for s,sample in target_samples.items():
-        # inputs, outputs = sample
-        e_lb, e_ub = epsilon_bounds[s]
-        if coarse_pass:
-            step_start = ms_since_1970()
-            e_lb, e_ub = find_epsilon_bounds(net, sample, e_lb, e_ub, e_prec, target_y=target_y, timeout=timeout, verbose=verbose)
-            if verbose > 0: logger.info(f's{s} y{y}:y{target_y} coarse epsilon bounds {e_lb, e_ub} ({ms_since_1970() - step_start}ms)')
-        e, cex = find_epsilon(net, sample, e_lb, e_ub, e_prec, target_y=target_y, timeout=timeout, verbose=verbose)
-        if verbose > 0: logger.info(f's{s} y{y}:y{target_y} epsilon {e} ({ms_since_1970() - step_start}ms)')
-        results[s] = (e, cex)
-    return results
+        Returns:
+            tuple(np.array, np.array): tuple containing (X, Y)
+        '''
+        return (self.X, self.Y)
 
-def verify_region(net, region, n_categories, eprec, rpad=1, verbose=0, timeout=0):
-    radius, centroid, n_features = region.radius, region.centroid, region.X.shape[1]
-    emax =  ((radius + rpad) / n_features)
-    sample = (centroid, [int(region.category==i) for i in range(n_categories)])
-    allowed_misclassifications = region.allowed_misclassifications if hasattr(region, 'allowed_misclassifications') else []
-    start = ms_since_1970()
-    vepsilon, cex = find_epsilon(net, sample, eprec, emax, eprec, allowed_misclassifications=allowed_misclassifications, verbose=verbose, timeout=timeout)
-    duration = ms_since_1970() - start
-    vradius = distance.euclidean(centroid + vepsilon, centroid)
-    return (vradius, vepsilon, cex, duration)
+    @property
+    def results(self) -> pd.DataFrame:
+        '''results property
 
-def verify_regions(nnet_path, regions, n_categories, nmin=100, eprec=0.0001, rpad=1, verbose=0, timeout=0):
-    nregions, vregions = len(regions), []
-    net = TOTNet(nnet_path)
-    for i,r in enumerate(regions):
-        vrad, veps, cex, duration = verify_region(net, r, n_categories, eprec, rpad=rpad, verbose=verbose, timeout=timeout)
-        if verbose > 0: logger.info(f'region {i} of {nregions} verified with r={vrad}, e={veps} ({duration} ms)')
-        density = r.n/vrad if vrad > 0 else r.n/eprec
-        vr = dict(centroid=r.centroid, radius=vrad, epsilon=veps, n=r.n, density=density, category=r.category, oradius=r.radius, counterexample=cex, duration=duration)
-        vregions.append(vr)
-    return vregions
+        Returns:
+            pd.DataFrame: returns a dataframe containing verification results
+        '''
+        return self._results
 
-def save_verified_regions(vregions, outdir=default_outdir, n_categories=5):
-    n_features, n_categories = vregions[0]['centroid'].shape[0], n_categories
-    header = ','.join(
-        [f'cx{i}' for i in range(n_features)] + 
-        ['radius', 'epsilon', 'n', 'density', 'category', 'oradius', 'duration'] + 
-        [f'cex_x{x}' for x in range(n_features)] +
-        [f'cex_y{y}' for y in range(n_categories)]
+    @results.setter
+    def results(self, results:pd.DataFrame):
+        '''setter for results property
+
+        Args:
+            results (pd.DataFrame): a dataframe containing results
+        '''
+        self._results = results
+    
+    def get_counterexample(self, x_index:int) -> tuple:
+        '''gets a counterexample from the sample @ x_index
+
+        Args:
+            x_index (int): index of sample in X
+
+        Returns:
+            np.array: returns the counterexample
+        '''
+        return self._counterexamples[x_index]
+
+    def get_counterexamples(self, include_outputs=True) -> Dict[int, Counterexample]:
+        '''returns all counterexamples (and optionally includes the outputs)
+
+        Args:
+            include_outputs (bool, optional): . Defaults to True.
+
+        Returns:
+            dict: dictionary containing counterexamples
+        '''
+        if include_outputs:
+            return self._counterexamples
+        return {k:c[0] for k,c in self._counterexamples.items()}
+    counterexamples = property(get_counterexamples)
+
+    @counterexamples.setter
+    def counterexamples(self, counterexamples:dict):
+        self._counterexamples = counterexamples
+    
+    def _find_counterexample(self, x:np.array, y:np.array, epsilon:float) -> tuple:
+        lbs = x-epsilon
+        ubs = x+epsilon
+        for i in self.net.ignored_features:
+            lbs[i] = x[i]
+            ubs[i] = x[i]
+        y_idx = np.argmax(y)
+        return self.net.find_counterexample(lbs, ubs, y_idx,
+            allowed_misclassifications=self._allowed_misclassifications,
+            )
+    
+    def _get_predicted_label(self, actual_y, outputs:List[float]) -> int:
+        maxval = max(outputs)
+        for i in enumerate(outputs):
+            if i != actual_y and i >= maxval:
+                return i
+        return actual_y
+
+    def _find_epsilon(self, x:np.array, y:np.array, x_index=None) -> dict:
+        lower, upper, interval = self._e_min, self._e_max, self._e_interval
+        actual_label = np.argmax(y)
+        predicted_label = actual_label
+        epsilon = self._e_max
+        counterexample = None
+        while ((upper - lower) > interval):
+            guess = lower + (upper - lower) / 2.0
+            pred, cex = self._find_counterexample(x, y, guess)
+            if self._verbosity > 1:
+                print(f's{x_index}@epsilon={guess}: class={actual_label}, pred_class={pred}')
+            if cex is None:
+                # correct prediction
+                lower = guess
+            else:
+                # incorrect prediction
+                upper = guess
+                epsilon = guess
+                counterexample = cex
+                predicted_label = pred
+        return epsilon, predicted_label, counterexample
+    
+    def analyze(self, results_outpath:str='', counterexamples_outpath:str='', dataset_outpath:str=''):
+        results, counterexamples = [], []
+        X, Y = self.X, self.Y
+        for i in range(X.shape[0]):
+            x, y = X[i], Y[i]
+            start = ms_since_1970()
+            epsilon, pred_label, counterexample = self._find_epsilon(x, y, x_index=i)
+            actual_label = np.argmax(y)
+            duration = ms_since_1970() - start
+            if self._verbosity > 0:
+                print(f's{i}, class:{actual_label}, pred:{pred_label}, epsilon:{epsilon} ({duration} ms)')
+            results.append({
+                'x':i,
+                'class': actual_label,
+                'pred_class': pred_label,
+                'epsilon':epsilon,
+                'time':duration
+                })
+            counterexamples.append(counterexample)
+        
+        self.results = pd.DataFrame(results)
+        self.counterexamples = counterexamples
+        if self._verbosity > 0:
+            print(f'completed analysis of {self.X.shape[0]} samples in {_ms_to_human(self.results["time"].sum())}')
+        if results_outpath or counterexamples_outpath or dataset_outpath:
+            self.save_results(results_outpath=results_outpath, counterexamples_outpath=counterexamples_outpath, dataset_outpath=dataset_outpath)
+        return self
+
+    def save_results(self, results_outpath:str='', counterexamples_outpath:str='', dataset_outpath:str=''):
+        if results_outpath:
+            create_dirpath(results_outpath)
+            self.results.to_csv(results_outpath)
+        if counterexamples_outpath:
+            create_dirpath(counterexamples_outpath)
+            pickle.dump(self.counterexamples, open(counterexamples_outpath, 'wb'))
+        if dataset_outpath:
+            create_dirpath(dataset_outpath)
+            pickle.dump(self.dataset, open(dataset_outpath, 'wb'))
+    
+    def load_results(self, results_path:str='', counterexamples_path:str='', dataset_path:str=''):
+        if results_path:
+            self.results = pd.read_csv(results_path, index_col=0)
+        if counterexamples_path:
+            self.counterexamples = pickle.load(open(counterexamples_path, 'rb'))
+        if dataset_path:
+            self._X, self._Y = pickle.load(open(dataset_path, 'rb'))
+
+def test_local_robustness(
+    network_path:str='',
+    network_version:int=1,
+    network_options:dict=dict(),
+    X:np.array=np.array([]),
+    Y:np.array=np.array([]),
+    chunksize:int=None,
+    e_min:float=DEFAULTS['e_min'],
+    e_max:float=DEFAULTS['e_max'],
+    e_interval:float=DEFAULTS['e_interval'],
+    allowed_misclassifications=[],
+    timeout:int=DEFAULTS['timeout'],
+    marabou_options:dict=dict(),
+    marabou_verbosity:int=0,
+    out_dir:str='./results'
+    ):
+
+    is_chunked = chunksize is not None
+    chunksize = chunksize if is_chunked else X.shape[0]
+    chunks = list(chunk_dataset(X, Y, chunksize))
+    get_out_dir = lambda chunk_i: f'{out_dir}' + (f'/chunk_{chunk_i}' if is_chunked else '')
+
+    for i in len(chunks):
+        Xc, Yc = chunks[i]
+        results_outpath = os.path.join(get_out_dir(i), './results.csv'),
+        counterexamples_outpath = os.path.join(get_out_dir(i), './counterexamples.p'),
+        lr = LocalRobustness(
+            network_path=network_path,
+            network_version=network_version,
+            network_options=network_options,
+            X=Xc,
+            Y=Yc,
+            e_min=e_min,
+            e_max=e_max,
+            e_interval=e_interval,
+            allowed_misclassifications=allowed_misclassifications,
+            timeout=timeout,
+            marabou_options=marabou_options,
+            marabou_verbosity=marabou_verbosity
+            )
+        # TODO: pickle entire LocalRobustness object (or as much as possible)
+        lr.analyze(
+            results_outpath=results_outpath,
+            counterexamples_outpath=counterexamples_outpath
+            )
+
+def _main(
+    network_path:str,
+    network_version:int,
+    dataset_path:str,
+    chunksize:int=None,
+    e_min:float=DEFAULTS['e_min'],
+    e_max:float=DEFAULTS['e_max'],
+    e_interval:float=DEFAULTS['e_interval'],
+    timeout:int=DEFAULTS['timeout'],
+    allowed_misclassifications:List[str]=[],
+    use_milp:bool=False,
+    out_dir:str='./results'
+    ):
+
+    X, Y = pickle.load(open(dataset_path, 'rb'))
+    allowed_misclassifications = _parse_allowed_misclassifications(allowed_misclassifications)
+
+    # Pass the appropriate options to marabou if loading a tensorflow model instead of .nnet
+    network_ext = get_file_extension(network_path)
+    network_options = dict() if network_ext == '.nnet' else dict(modelType='savedModel_v2')
+
+    # Setup the arguments for MILP solving
+    marabou_options = dict(solveWithMILP=True, milpTightening='none') if use_milp else dict()
+
+    test_local_robustness(
+        network_path=network_path,
+        network_version=network_version,
+        network_options=network_options,
+        X=X,
+        Y=Y,
+        chunksize=chunksize,
+        e_min=e_min,
+        e_max=e_max,
+        e_interval=e_interval,
+        timeout=timeout,
+        allowed_misclassifications=allowed_misclassifications,
+        marabou_options=marabou_options,
+        out_dir=out_dir
         )
-    rows = []
-    for r in vregions:
-        cex = r['counterexample']
-        cex = cex[0] if cex else (['' for i in range(n_features)], ['' for i in range(n_categories)])
-        rows.append(','.join(
-            [str(x) for x in r['centroid']] + 
-            [str(v) for v in (r['radius'], r['epsilon'], r['n'], r['density'], r['category'], r['oradius'], r['duration'])] + 
-            [str(x) for x in cex[0]] +
-            [str(y) for y in cex[1]]
-            ))
-    create_dirpath(outdir)
-    outpath = os.path.join(outdir, 'vregions.csv')
-    with open(outpath, 'w') as f:
-        f.writelines('\n'.join([header] + rows))
-        logger.info(f'wrote verified regions to {outpath}')
 
 if __name__ == '__main__':
-    '''
-    Usage: python3 verification/robustness.py -n NNETPATH -d DATAPATH [-df FRAC -emin EMIN -emax EMAX -eprec EPREC -a -t TIMEOUT -sr -ss -sl -o OUTDIR -v V]
-    '''
+    from argparse import ArgumentParser
+
     parser = ArgumentParser()
-    parser.add_argument('-n', '--nnetpath', required=True)
-    parser.add_argument('-d', '--datapath', required=True)
-    parser.add_argument('-df', '--datafrac', type=float, default=1)
-    parser.add_argument('-emin', '--emin', type=float, default=default_emin)
-    parser.add_argument('-emax', '--emax', type=float, default=default_emax)
-    parser.add_argument('-eprec', '--eprec', type=float)
-    parser.add_argument('-a', '--asym', action='store_true')
-    parser.add_argument('-nc', '--nocoarse', action='store_true')
-    parser.add_argument('-t', '--timeout', default=default_timeout)
-    parser.add_argument('-ck', '--checkresults', action='store_true')
-    parser.add_argument('-sr', '--saveresults', action='store_true')
-    parser.add_argument('-ss', '--savesamples', action='store_true')
-    parser.add_argument('-sl', '--savelogs', action='store_true')
-    parser.add_argument('-o', '--outdir', default=default_outdir)
-    parser.add_argument('-v', '--verbose', type=int, default=0)
+    parser.add_argument('-n', '--networkpath',
+        required=True,
+        help='Path to network'
+        )
+    parser.add_argument('-nv', '--networkversion',
+        type=int,
+        default=1,
+        help='version of the network (1 or 2)'
+        )
+    parser.add_argument('-d', '--datasetpath',
+        required=True,
+        help='Path to pickle containing dataset (X, Y)'
+        )
+    parser.add_argument('-c', '--chunksize',
+        type=int,
+        default=None,
+        help='Analyze dataset in chunks of chunksize.'
+        )
+    parser.add_argument('-en', '--emin',
+        default=DEFAULTS['e_min'],
+        help='Minimum epsilon'
+        )
+    parser.add_argument('-ex', '--emax',
+        default=DEFAULTS['e_max'],
+        help='Maximum epsilon'
+        )
+    parser.add_argument('-et', '--eint',
+        default=DEFAULTS['e_interval'],
+        help='Interval between epsilons (precision)'
+        )
+    parser.add_argument('-t', '--timeout',
+        default=DEFAULTS['timeout'],
+        help='Timeout for marabou queries'
+        )
+    parser.add_argument('-a', '--allowedmisclassifications',
+        nargs='*',
+        default=[],
+        help='Allowed misclassifications (for targeted queries). Actual and allowed class separated by comma; Multiple items separated by space. (e.g. 4,3 2,1)'
+        )
+    parser.add_argument('-m', '--milp',
+        default=False,
+        action='store_true',
+        help='Use Marabou\'s MILP solver'
+        )
+    parser.add_argument('-o', '--outdir',
+        default='./results',
+        help='Output directory for results'
+        )
     args = parser.parse_args()
-    # configure logger
-    for handler in logger.handlers[:]: logger.removeHandler(handler)  
-    logger = create_logger('robustness', to_file=args.savelogs, logdir=args.outdir)
-    # load % of samples, and filter out incorrect predictions
-    samples = TOTUtils.filter_samples(TOTUtils.load_samples(args.datapath, frac=args.datafrac), args.nnetpath)
-    logger.info(f'starting local robustness test on {len(samples)} samples')
-    results = test_local_robustness(args.nnetpath, samples, e_min=args.emin, e_max=args.emax, e_prec=args.eprec, asym=args.asym, coarse_pass=not args.nocoarse, timeout=args.timeout, save_results=args.saveresults, save_samples=args.savesamples, outdir=args.outdir, verbose=args.verbose)        
-    if args.checkresults:
-        logger.info(f'checking {"asym " if args.asym else ""} robustness results...')
-        check_results = check_local_robustness(args.nnetpath, samples, results, asym=args.asym, outdir=args.outdir, timeout=args.timeout, verbose=args.verbose)
-        # notok = [k for k,v in check_results.items() if [i for i in v if any(i)]] if args.asym else [k for k,v in check_results.items() if any(v)]
-        notok = [s for s,v in check_results.items() if any(v)] if args.asym else [s for s,v in check_results.items() if v]
-        logger.info(f'local robustness check {"ok" if not notok else f"found counterexamples for {notok}"}')
-        if notok: logger.info(f'local robustness check results {check_results}')
+
+    _main(
+        args.networkpath,
+        args.networkversion,
+        args.datasetpath,
+        chunksize=args.chunksize,
+        e_min=args.emin,
+        e_max=args.emax,
+        e_interval=args.eint,
+        timeout=args.timeout,
+        allowed_misclassifications=args.allowedmisclassifications,
+        use_milp=args.milp,
+        out_dir=args.outdir
+        )

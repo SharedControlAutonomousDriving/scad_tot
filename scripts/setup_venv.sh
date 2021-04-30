@@ -9,6 +9,7 @@
 # Options: 
 #   - m: custom path to marabou (default is .marabou)
 
+PROJECT_PATH="$(pwd)"
 PATH_TO_MARABOU="$(pwd)/.marabou"
 _VENV_ACTIVATE="./venv/bin/activate"
 _VENV_ACTIVATE_BAK="$_VENV_ACTIVATE.bak"
@@ -41,10 +42,11 @@ fi
 cat > $_VENV_ACTIVATE_TMP <<- EOM
 
 # set custom path variables, and save original values
+
 export _OLD_MARABOU_PATH=\$MARABOU_PATH
 export MARABOU_PATH=$PATH_TO_MARABOU
 export _OLD_PYTHONPATH=\$PYTHONPATH
-export PYTHONPATH=\$MARABOU_PATH
+export PYTHONPATH=\$MARABOU_PATH:$PROJECT_PATH
 export _OLD_JUPYTER_PATH=\$JUPYTER_PATH
 export JUPYTER_PATH=\$MARABOU_PATH
 
