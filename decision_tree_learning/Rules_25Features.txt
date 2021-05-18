@@ -1,0 +1,6 @@
+1. ManualWheel <= 0.307 and FixationStart <= -1.677 and MPH <= -1.34 and FixationSequence > -1.704 : class = TOT_med_slow
+2. ManualWheel <= 0.307 and FixationStart <= -1.677 and MPH <= -1.34 and FixationSequence <= -1.704 and MPH <= -2.126 : class = TOT_med
+3. ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH > -2.126 : class = TOT_med_fast
+4. ManualWheel <= 0.307 & FixationStart > -1.677 & FixationStart > 1.717 & PupilLeft > 0.424 & FixationStart > 1.924 : class = TOT_slow
+5. ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel <= 0.887 : class = TOT_med_slow
+6. ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel > 0.887 : class = TOT_fast

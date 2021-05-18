@@ -1,0 +1,4 @@
+1. MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight > -0.504 & ManualBreak <= 4.058 ----- class = TOT_slow
+2. MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight <= -0.504 & MPH <= -4.832 ----- class = TOT_slow
+3. MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight <= -0.504 & MPH > -4.832 ----- class = TOT_med_slow
+4. MPH > 0.865 and FizationStart > -0.17 and GazeDirectionRightZ ≤ 0.503 and InterpolatedGazeY > -0.047 and MPH <= 1.191 and PupilRight > -0.681 ------ class = TOT_med_fast
