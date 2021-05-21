@@ -6,3 +6,6 @@ plotly
 sklearn
 jupyter
 pylint
+netcal
+scriptify
+
