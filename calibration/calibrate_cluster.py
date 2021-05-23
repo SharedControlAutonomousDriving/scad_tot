@@ -37,8 +37,8 @@ if __name__ == '__main__':
                           test_data.drop(
                               ['Unnamed: 0', 'TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow'], axis=1)
         model = load_model("../network/models/v3.2.2/model.h5")
-        print("Train dataset size: ", y_train.size)
-        print("Test dataset size: ", y_test.size)
+        print("# of train samples: ", len(y_train.index))
+        print("# of test samples: ", len(y_test.index))
 
         if experiment == 'calibrate':
 
@@ -82,8 +82,10 @@ if __name__ == '__main__':
 
             num_in_verified_regions = 0
             num_acc_in_verified_regions = 0
-            num_acc_not_in_verified_regions = 0
-            num_conf_acc_not_in_verified_regions = {'0.0': 0, '0.1': 0, '0.2': 0, '0.3': 0, '0.4': 0,
+            num_not_in_verified_regions = {'0.0': 0, '0.1': 0, '0.2': 0, '0.3': 0, '0.4': 0,
+                                                    '0.5': 0, '0.6': 0, '0.7': 0, '0.8': 0, '0.9': 0}
+
+            num_acc_not_in_verified_regions = {'0.0': 0, '0.1': 0, '0.2': 0, '0.3': 0, '0.4': 0,
                                                     '0.5': 0, '0.6': 0, '0.7': 0, '0.8': 0, '0.9': 0}
             for index, row in X_test.iterrows():
                 y_pred_i = y_pred[index,:]
@@ -94,32 +96,53 @@ if __name__ == '__main__':
                     if acc_i:
                         num_acc_in_verified_regions += 1
                 else:
+                    y_conf_i = y_calib_i[np.argmax(y_pred_i)]
+                    if (y_conf_i >= 0.9):
+                        num_not_in_verified_regions['0.9'] += 1
+                    elif (y_conf_i >= 0.8):
+                        num_not_in_verified_regions['0.8'] += 1
+                    elif (y_conf_i >= 0.7):
+                        num_not_in_verified_regions['0.7'] += 1
+                    elif (y_conf_i >= 0.6):
+                        num_not_in_verified_regions['0.6'] += 1
+                    elif (y_conf_i >= 0.5):
+                        num_not_in_verified_regions['0.5'] += 1
+                    elif (y_conf_i >= 0.4):
+                        num_not_in_verified_regions['0.4'] += 1
+                    elif (y_conf_i >= 0.3):
+                        num_not_in_verified_regions['0.3'] += 1
+                    elif (y_conf_i >= 0.2):
+                        num_not_in_verified_regions['0.2'] += 1
+                    elif (y_conf_i >= 0.1):
+                        num_not_in_verified_regions['0.1'] += 1
+                    else:
+                        num_not_in_verified_regions['0.0'] += 1
+
                     if acc_i:
-                        num_acc_not_in_verified_regions += 1
-                        y_conf_i = y_calib_i[np.argmax(y_pred_i)]
                         if (y_conf_i >= 0.9):
-                            num_conf_acc_not_in_verified_regions['0.9'] += 1
+                            num_acc_not_in_verified_regions['0.9'] += 1
                         elif (y_conf_i >= 0.8):
-                            num_conf_acc_not_in_verified_regions['0.8'] += 1
+                            num_acc_not_in_verified_regions['0.8'] += 1
                         elif (y_conf_i >= 0.7):
-                            num_conf_acc_not_in_verified_regions['0.7'] += 1
+                            num_acc_not_in_verified_regions['0.7'] += 1
                         elif (y_conf_i >= 0.6):
-                            num_conf_acc_not_in_verified_regions['0.6'] += 1
+                            num_acc_not_in_verified_regions['0.6'] += 1
                         elif (y_conf_i >= 0.5):
-                            num_conf_acc_not_in_verified_regions['0.5'] += 1
+                            num_acc_not_in_verified_regions['0.5'] += 1
                         elif (y_conf_i >= 0.4):
-                            num_conf_acc_not_in_verified_regions['0.4'] += 1
+                            num_acc_not_in_verified_regions['0.4'] += 1
                         elif (y_conf_i >= 0.3):
-                            num_conf_acc_not_in_verified_regions['0.3'] += 1
+                            num_acc_not_in_verified_regions['0.3'] += 1
                         elif (y_conf_i >= 0.2):
-                            num_conf_acc_not_in_verified_regions['0.2'] += 1
+                            num_acc_not_in_verified_regions['0.2'] += 1
                         elif (y_conf_i >= 0.1):
-                            num_conf_acc_not_in_verified_regions['0.1'] += 1
+                            num_acc_not_in_verified_regions['0.1'] += 1
                         else:
-                            num_conf_acc_not_in_verified_regions['0.0'] += 1
+                            num_acc_not_in_verified_regions['0.0'] += 1
 
-
-            print("num_in_verified_regions: ", num_in_verified_regions)
-            print("num_acc_in_verified_regions: ", num_acc_in_verified_regions)
-            print("num_acc_not_in_verified_regions: ", num_acc_not_in_verified_regions)
-            print("num_conf_acc_not_in_verified_regions: ", num_conf_acc_not_in_verified_regions)
+            print("# of test samples in verified regions: ", num_in_verified_regions)
+            print("# of correctly predicted test samples in verified regions: ",
+                  num_acc_in_verified_regions)
+            print("# of test samples NOT in verified regions: ", num_not_in_verified_regions)
+            print("# of correctly predicted test samples NOT in verified regions: ",
+                  num_acc_not_in_verified_regions)
