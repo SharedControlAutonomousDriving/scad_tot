@@ -65,8 +65,6 @@ class LocalRobustness():
 
         TOTNetClass = TOTNET_CLASSES[self._network_version]
 
-        print('TOTNETCLASS:', TOTNetClass)
-
         self._net = TOTNetClass(
             self._network_path,
             network_options=self._network_options,

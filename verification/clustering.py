@@ -4,7 +4,7 @@ import pandas as pd
 from scipy import stats
 from sklearn.cluster import KMeans
 from scipy.spatial import distance
-from utils import create_dirpath, create_logger, ms_since_1970
+from verification.utils import create_dirpath, create_logger, ms_since_1970
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
