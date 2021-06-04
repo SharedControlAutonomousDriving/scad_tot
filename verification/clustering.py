@@ -325,6 +325,14 @@ class LabelGuidedKMeansRegion:
         return np.array([LabelGuidedKMeansUtils.to_categorical(y, self._ncats) for y in self._Y]) if onehot else self._Y
     Y = property(get_Y)
 
+    @property
+    def n_features(self):
+        return self.get_X().shape[1]
+    
+    @property
+    def n_categories(self):
+        return self.get_Y(onehot=True).shape[1]
+
 class LabelGuidedKMeansUtils:
     @staticmethod
     # def get_initial_centroids(X, Y, rand=True):
