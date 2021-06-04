@@ -6,6 +6,8 @@ import pandas as pd
 from typing import Dict, List, Tuple
 from verification.tot_net import TOTNet, TOTNetV1, TOTNetV2, AllowedMisclassifications, Counterexample
 from verification.utils import _set_tf_log_level, ms_since_1970, _ms_to_human, create_dirpath, _parse_allowed_misclassifications, chunk_dataset, get_file_extension
+from verification.clustering import LabelGuidedKMeansRegion
+from scipy.spatial import distance
 
 _set_tf_log_level()
 
@@ -62,7 +64,9 @@ class LocalRobustness():
         self._counterexamples = []
 
         TOTNetClass = TOTNET_CLASSES[self._network_version]
-        self._net = TOTNetClass(self._network_path,
+
+        self._net = TOTNetClass(
+            self._network_path,
             network_options=self._network_options,
             marabou_options=self._marabou_options,
             marabou_verbosity=self._marabou_verbosity
@@ -284,6 +288,81 @@ def test_local_robustness(
             counterexamples_outpath=counterexamples_outpath
             )
 
+def verify_regions(
+    network_path:str='',
+    network_version:int=1,
+    network_options:dict=dict(),
+    regions:List[LabelGuidedKMeansRegion]=[],
+    e_min:float=DEFAULTS['e_min'],
+    e_max:float=DEFAULTS['e_max'],
+    e_interval:float=DEFAULTS['e_interval'],
+    radius_padding:float=0,
+    allowed_misclassifications=None,
+    timeout:int=DEFAULTS['timeout'],
+    marabou_options:dict=dict(),
+    marabou_verbosity:int=0,
+    out_dir:str='./results'):
+    # list to store verified regions
+    vregions = []
+    # verify regions one at a time...
+    for i,region in enumerate(regions):
+        # setup output paths for the region's robustness test
+        region_outdir = f'{out_dir}/region_{i}'
+        results_outpath = os.path.join(region_outdir, 'results.csv')
+        counterexamples_outpath = os.path.join(region_outdir, 'counterexamples.p')
+        
+        # get the region's radius, centroid, number of features, and number of categories.
+        radius, centroid, n_categories = region.radius, region.centroid, region.n_categories
+        
+        # setup the inputs for the robustness test (Xc=centroid, Yc=region's label)
+        Xc, Yc = np.array([centroid]), np.array([[int(region.category==i) for i in range(n_categories)]])
+
+        # setup the LocalRobustness object.
+        lr = LocalRobustness(
+            network_path=network_path,
+            network_version=network_version,
+            network_options=network_options,
+            X=Xc,
+            Y=Yc,
+            e_min=e_min,
+            e_max=e_max,
+            e_interval=e_interval,
+            allowed_misclassifications=allowed_misclassifications,
+            timeout=timeout,
+            marabou_options=marabou_options,
+            marabou_verbosity=marabou_verbosity
+            )
+        # run the robustness test
+        lr.analyze(
+            results_outpath=results_outpath,
+            counterexamples_outpath=counterexamples_outpath
+            )
+        # get the epsilon from the results, and use it to calculate the verified radius and density.
+        region_results = lr.results.iloc[0]
+        epsilon = region_results['epsilon']
+        time = region_results['time']
+        vradius = distance.euclidean(centroid + epsilon, centroid)
+        density = region.n/vradius if vradius > 0 else region.n/e_interval
+        region_data = {
+            'centroid': region.centroid,
+            'radius': vradius,
+            'epsilon': epsilon,
+            'n': radius.n,
+            'density': density,
+            'category': region.category,
+            'oradius': region.radius,
+            'duration': time
+        }
+        vregions.append(region_data)
+        print(f'region {i} - radius:{vradius}, epsilon: {epsilon}, ({time}ms)')
+
+    # create a dataframe of all of the results.
+    verified_regions = pd.DataFrame(vregions)
+    create_dirpath(out_dir)
+    vregions_file = os.path.join(out_dir, f'vregions.csv')
+    verified_regions.to_csv(vregions_file)
+    print(f'Complete! Verified regions saved to: {vregions_file}')
+
 def _main(
     network_path:str,
     network_version:int,
@@ -323,6 +402,7 @@ def _main(
         marabou_options=marabou_options,
         out_dir=out_dir
         )
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser

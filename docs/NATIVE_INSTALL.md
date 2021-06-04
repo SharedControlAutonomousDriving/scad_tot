@@ -48,12 +48,14 @@ On Linux you just need to install `cmake`. Its hard to provide one solution for 
 
 ### Marabou Install
 
+First, install the Gurobi Optimizer (required for Marabou's LP relaxation). You'll need to obtain an academic license from Gurobi. Links to the instructions for obtaining the license and installing Gurobi can be found in [Marabou's LP Relaxation Docs](https://github.com/NeuralNetworkVerification/Marabou#use-lp-relaxation). Once you have the optimizer installed, licensed, and setup, move on below.
+
 * Download: **%** `git clone https://github.com/NeuralNetworkVerification/Marabou.git`
 * Setup marabou build folder: **%** `mv Marabou .marabou && mkdir .marabou/build && cd .marabou/build`
-* Configure: **%** `cmake .. -DBUILD_PYTHON=ON`
+* Configure: **%** `cmake .. -DBUILD_PYTHON=ON -DENABLE_GUROBI=ON`
   * **IF** you hit an error saying: ['Imported target "openblas" includes non-existent path'](https://github.com/NeuralNetworkVerification/Marabou/issues/380), here is a workaround:
     * run `rm -r ../tools/OpenBLAS-0.3.9`
-    * then re-run `cmake .. -DBUILD_PYTHON=ON`
+    * then re-run `cmake .. -DBUILD_PYTHON=ON -DENABLE_GUROBI=ON`
   * NOTE: You may see a ton of warnings. The warnings are OK. Errors are not :)
 * Build: **%** `cmake --build .`
 * Go back to project root: **%** `cd ../../`

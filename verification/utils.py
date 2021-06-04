@@ -1,4 +1,4 @@
-import os, logging, random, time
+import os, logging, random, time, math
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -9,6 +9,14 @@ from scipy.special import softmax
 
 # # TODO: remove tot_net import from utils
 # from verification.tot_net import TOTNet
+
+def chunk_dataset(X:np.array, Y:np.array, chunksize:int):
+    n_chunks = math.ceil(X.shape[0] / chunksize)
+    X_chunks = np.array_split(X, chunksize, axis=0)
+    Y_chunks = np.array_split(Y, chunksize, axis=0)
+    n_chunks = len(X_chunks)
+    chunks = [(X_chunks[0], Y_chunks[0]) for i in range(n_chunks)]
+    return chunks
 
 def _parse_onehot_features(onehot_feature_defs:List[str]) -> List[tuple]:
     '''Parses onehot feature definitions from CLI.

@@ -4,12 +4,13 @@ import pandas as pd
 from scipy import stats
 from sklearn.cluster import KMeans
 from scipy.spatial import distance
-from utils import create_dirpath, create_logger, ms_since_1970
+from verification.utils import create_dirpath, create_logger, ms_since_1970
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import euclidean_distances
+from typing import List
 
 default_outdir = './logs/clustering'
 logger = create_logger('clustering', logdir=default_outdir)
@@ -324,6 +325,14 @@ class LabelGuidedKMeansRegion:
         '''
         return np.array([LabelGuidedKMeansUtils.to_categorical(y, self._ncats) for y in self._Y]) if onehot else self._Y
     Y = property(get_Y)
+
+    @property
+    def n_features(self):
+        return self.get_X().shape[1]
+    
+    @property
+    def n_categories(self):
+        return self.get_Y(onehot=True).shape[1]
 
 class LabelGuidedKMeansUtils:
     @staticmethod
@@ -700,4 +709,112 @@ class LabelGuidedKMeansUtils:
 
         #weights = X[:,1] + 1e-10#
 
-        return weights        
+        return weights
+
+class VerifiedRegions:
+    def __init__(self, regions:List[VerifiedRegion]):
+        '''class representing a set of verified regions.
+
+        Args:
+            regions (List[VerifiedRegion]): the list of verified regions.
+        '''
+        self._regions = regions
+    
+    def get_regions(self, category=None) -> List[VerifiedRegion]:
+        '''getter for list of verified regions (optionally for a single category)
+
+        Returns:
+            List[VerifiedRegion]: the list of regions
+        '''
+        if category is not None:
+            return [r for r in self.regions if r.category == category]
+        return self._regions
+
+    regions = property(get_regions)
+
+    
+    def find_region(self, x:np.array, y:np.array=None):
+        '''find a region for a given x and (optionally) y
+
+        Args:
+            x (np.array): (required) the input (x)
+            y (np.array): (optional) the onehot encoded label (y)
+
+        Returns:
+            [type]: [description]
+        '''
+        regions = self.regions if y is None else self.get_regions(category=np.argmax(y))
+        for r in regions:
+            if r.in_region(x):
+                return r
+        return None
+
+
+class VerifiedRegion:
+    def __init__(
+        self,
+        centroid:np.array,
+        radius:float,
+        category:int,
+        n:int, 
+        epsilon:float,
+        density:float,
+        oradius:float
+        ):
+        '''class representing a single verified region
+
+        Args:
+            centroid (np.array): the centroid
+            radius (float): the verified radius
+            category (int): the category (label)
+            n (int): number of known points in the region
+            epsilon (float): epsilon value from verification.
+            density (float): density of the region (w.r.t. number of points)
+            oradius (float): radius of the original region
+        '''
+        self._centroid = centroid
+        self._radius = radius
+        self._category = category
+        self._n = n
+        self._epsilon = epsilon
+        self._density = density
+        self._oradius = oradius
+    
+    @property
+    def centroid(self) -> np.array:
+        return self._centroid
+    
+    @property
+    def radius(self) -> float:
+        return self._radius
+    
+    @property
+    def category(self) -> int:
+        return self._category
+    
+    @property
+    def n(self) -> int:
+        return self._n
+    
+    @property
+    def epsilon(self) -> float:
+        return self._epsilon
+    
+    @property
+    def density(self) -> float:
+        return self._density
+    
+    @property
+    def oradius(self) -> float:
+        return self._oradius
+
+    def x_in_region(self, x:np.array) -> bool:
+        '''checks if a given x is in the region.
+
+        Args:
+            x (np.array): the input (x)
+
+        Returns:
+            bool: true if point exists in region, false otherwise.
+        '''
+        return distance.euclidean(x, self.centroid) <= self.radius
