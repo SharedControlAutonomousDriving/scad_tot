@@ -8,6 +8,93 @@ from itertools import product
 from maraboupy import Marabou, MarabouCore, MarabouUtils
 from scriptify import scriptify
 
+# 1. ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence > -1.704 : class = TOT_med_slow
+# 2. ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH <= -2.126 : CLASS = TOT_med
+# 3. ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH > -2.126 : CLASS = TOT_med_fast
+# 4. ManualWheel <= 0.307 & FixationStart > -1.677 & FixationStart > 1.717 & PupilLeft > 0.424 & FixationStart > 1.924 : CLASS = TOT_slow
+# 5. ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel <= 0.887 : CLASS: TOT_med_slow
+# 6. ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel > 0.887 : CLASS: TOT_fast
+
+rules_25 = [
+    # ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence > -1.704 : class = TOT_med_slow
+    {
+        'name': 'Rule1',
+        'ubs': {'ManualWheel': 0.307, 'FixationStart': -1.677, 'MPH': -1.34},
+        'lbs':{'FixationSeq': -1.704},
+        'out': 'med_slow'
+    },
+    # ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH <= -2.126 : CLASS = TOT_med
+    {
+        'name': 'Rule2',
+        'ubs': {'ManualWheel': 0.307, 'FixationStart': -1.677, 'MPH': -2.126, 'FixationSeq': -1.704},
+        'lbs':{},
+        'out': 'med'
+    },
+    # ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH > -2.126 : CLASS = TOT_med_fast
+    {
+        'name': 'Rule3',
+        'ubs': {'ManualWheel': 0.307, 'FixationStart': -1.677, 'MPH': -1.34, 'FixationSeq': -1.704},
+        'lbs':{'MPH': -2.126},
+        'out': 'med_fast'
+    },
+    # ManualWheel <= 0.307 & FixationStart > -1.677 & FixationStart > 1.717 & PupilLeft > 0.424 & FixationStart > 1.924 : CLASS = TOT_slow
+    {
+        'name': 'Rule4',
+        'ubs': {'ManualWheel': 0.307},
+        'lbs': {'PupilLeft': 0.424, 'FixationStart':1.924},
+        'out': 'slow'
+    },
+    # ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel <= 0.887 : CLASS: TOT_med_slow
+    {
+        'name': 'Rule5',
+        'ubs': {'ManualWheel': 0.461, 'FixationSeq': 0.62, 'AutoWheel': 0.887},
+        'lbs': {'ManualWheel': 0.307, 'InterpolatedGazeY': 0.109, 'Distance3D': 0.283, 'FixationSeq': -0.043},
+        'out': 'med_slow'
+    },
+    # ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel > 0.887 : CLASS: TOT_fast
+    {
+        'name': 'Rule6',
+        'ubs': {'ManualWheel': 0.461, 'FixationSeq': 0.62},
+        'lbs': {'ManualWheel': 0.307, 'InterpolatedGazeY': 0.109, 'Distance3D': 0.283, 'FixationSeq': -0.043, 'AutoWheel': 0.887},
+        'out': 'fast'
+    }
+]
+
+# 1. MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight > -0.504 & ManualBreak <= 4.058 ----- class = TOT_slow
+# 2. MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight <= -0.504 & MPH <= -4.832 ----- class = TOT_slow
+# 3. MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight <= -0.504 & MPH > -4.832 ----- class = TOT_med_slow
+# 4. MPH > 0.865 and FizationStart > -0.17 and GazeDirectionRightZ ≤ 0.503 and InterpolatedGazeY > -0.047 and MPH <= 1.191 and PupilRight > -0.681 ------ class = TOT_med_fast
+rules_24 = [
+    # MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight > -0.504 & ManualBreak <= 4.058 ----- class = TOT_slow
+    {
+        'name': 'Rule1',
+        'ubs': {'MPH': 0.865, 'FixationStart': -1.91, 'ManualBreak': 4.058},
+        'lbs':{'PupilRight': -0.504},
+        'out': 'slow'
+    },
+    # MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight <= -0.504 & MPH <= -4.832 ----- class = TOT_slow
+    {
+        'name': 'Rule2',
+        'ubs': {'MPH': -4.832, 'FixationStart': -1.91, 'PupilRight': -0.504},
+        'lbs': {},
+        'out': 'slow'
+    },
+    # MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight <= -0.504 & MPH > -4.832 ----- class = TOT_med_slow
+    {
+        'name': 'Rule3',
+        'ubs': {'MPH': 0.865, 'FixationStart': -1.91, 'PupilRight': -0.504},
+        'lbs': {'MPH': -4.832},
+        'out': 'med_slow'
+    },
+    # MPH > 0.865 and FizationStart > -0.17 and GazeDirectionRightZ ≤ 0.503 and InterpolatedGazeY > -0.047 and MPH <= 1.191 and PupilRight > -0.681 ------ class = TOT_med_fast
+    {
+        'name': 'Rule4',
+        'ubs': {'GazeDirectionRightZ': 0.503, 'MPH': 1.191, },
+        'lbs': {'MPH': 0.865, 'FixationStart': -0.17, 'InterpolatedGazeY': -0.047, 'PupilRight': -0.681},
+        'out': 'med_fast'
+    }
+]
+
 def get_initial_bounds_based_on_rule_inputs(X, features, rule):
     feature_names = features.keys()
     df = pd.DataFrame(X, columns=feature_names)
@@ -31,17 +118,13 @@ def get_initial_bounds_based_on_rule_label(X, Y, labels, rule):
     upper = [X[indexes][:, i].max() for i in range(X.shape[1])]
     return lower, upper
 
-def test_rule(rule, lower_bounds, upper_bounds):
+def test_rule(net, rule, lower_bounds, upper_bounds, features, labels, categorical_feature_combos):
     target = labels[rule['out']]
 
     for y in range(5):
         if y == target: continue
 
         for cf in categorical_feature_combos:
-            net = Marabou.read_tf(
-                '../network/models/v3.2.2/model-verification',
-                modelType='savedModel_v2'
-                )
             input_vars = net.inputVars[0].flatten()
             output_vars = net.outputVars[0].flatten()
             # set upper and lower bounds for all features (min/max values from training set)
@@ -77,238 +160,97 @@ def test_rule(rule, lower_bounds, upper_bounds):
 if __name__ == '__main__':
 
     @scriptify
-    def script(epochs=30,
-               batch_size=128,
-               dataset_file='All_Features_ReactionTime.csv',
-               conf_name='default',
-               new_driver_ids='013_M1;013_M2;013_M3'):
+    def script(conf_name='default'):
 
-    # model_path = '../network/models/v3.2.2/model.nnet'
-    model_path = '../network/models/v3.2.2/model-verification'
-    features = pickle.load(open('../data/v3.2.2/features.p', 'rb'))
-    labels = pickle.load(open('../data/v3.2.2/labels.p', 'rb'))
-    # X, Y = pickle.load(open('../data/v3.2.2/verification.p', 'rb'))
+        data_path = f'../transfer_learning/data/{conf_name}'
+        # model_path = '../network/models/v3.2.2/model.nnet'
+        model_path = f'../transfer_learning/models/{conf_name}/model_base.nnet'
+        tf_model_path = f'../transfer_learning/models/{conf_name}/model_base'
+        features = pickle.load(open('./features.p', 'rb'))
+        labels = pickle.load(open('./labels.p', 'rb'))
 
-    df = pd.read_csv('../data/v3.2.2/train.csv', index_col=0)
-    lower_bounds = df.iloc[:, 0:25].min().to_numpy()
-    upper_bounds = df.iloc[:, 0:25].max().to_numpy()
+        df = pd.read_csv(f'{data_path}/train_base.csv', index_col=0)
+        lower_bounds = df.iloc[:, 0:25].min().to_numpy()
+        upper_bounds = df.iloc[:, 0:25].max().to_numpy()
 
-    # RULE 1: (med_fast)
-    # ManualWheel<=0.307 & FixationStart<=-1.677 & MPH>-1.34
-    rule1 = {
-        'name': 'rule1',
-        'ubs': {'ManualWheel': 0.307, 'FixationStart':-1.677},
-        'lbs':{'MPH':-1.34},
-        'out': 'med_fast'
-        }
+        net = TOTNetV1(
+            network_path=model_path,
+            network_options=dict(modelType='savedModel_v2'),
+            marabou_verbosity=0,
+            marabou_options=dict(solveWithMILP=True, milpTightening='none')
+            )
 
-    # RULE 2: (med_slow)
-    # ManualWheel<=0.307 & FixationStart<=-1.677 & MPH<=-1.34 & FixationSeq>-1.704
-    rule2 = {
-        'name': 'rule2',
-        'ubs': {'ManualWheel': 0.307, 'FixationStart':-1.677, 'MPH': -1.34},
-        'lbs':{'FixationSeq': -1.704},
-        'out': 'med_slow'
-        }
-
-    # RULE 3: (med_fast)
-    # ManualWheel<=0.307 & FixationStart<=-1.677 & MPH<=-1.34 & FixationSeq<=-1.704 & MPH<=-2.126
-    rule3 = {
-        'name': 'rule3',
-        # 'ubs': {'ManualWheel': 0.307, 'FixationStart':-1.677, 'MPH': -1.34, 'FixationSeq': -1.704, 'MPH':-2.126},
-        'ubs': {'ManualWheel': 0.307, 'FixationStart':-1.677, 'MPH': -1.34, 'FixationSeq': -1.704, 'MPH':-2.126},
-        'lbs':{},
-        'out': 'med_fast'
-        }
-
-    # RULE 4: (med)
-    # ManualWheel<=0.307 & FixationStart<=-1.677 & MPH<=-1.34 & FixationSeq<=-1.704 & MPH>-2.126
-    rule4 = {
-        'name': 'rule4',
-        'ubs': {'ManualWheel': 0.307, 'FixationStart':-1.677, 'MPH': -1.34, 'FixationSeq': -1.704},
-        'lbs':{'MPH':-2.126},
-        'out': 'med'
-        }
-
-    rules = [rule1, rule2, rule3, rule4]
-
-    net = TOTNetV1(
-        network_path=model_path,
-        network_options=dict(modelType='savedModel_v2'),
-        marabou_verbosity=0,
-        marabou_options=dict(solveWithMILP=True, milpTightening='none')
-        )
-
-    for r in rules:
-        lbs, ubs = lower_bounds.copy(), upper_bounds.copy()
-        for f,val in r['lbs'].items():
-            lbs[features.index(f)] = val
-        for f,val in r['ubs'].items():
-            ubs[features.index(f)] = val
-        y = labels.index(r['out'])
-        pred, cex = net.find_counterexample(lbs, ubs, y)
-        result = 'UNSAT' if cex is None else 'SAT'
-        print(f'{r["name"]} - class:{r["out"]}, pred:{labels[pred]}, result:{result}')
-        if result == 'SAT':
-            print(cex)
+        for r in rules_25:
+            lbs, ubs = lower_bounds.copy(), upper_bounds.copy()
+            for f,val in r['lbs'].items():
+                lbs[features.index(f)] = val
+            for f,val in r['ubs'].items():
+                ubs[features.index(f)] = val
+            y = labels.index(r['out'])
+            pred, cex = net.find_counterexample(lbs, ubs, y)
+            result = 'UNSAT' if cex is None else 'SAT'
+            print(f'{r["name"]} - class:{r["out"]}, pred:{labels[pred]}, result:{result}')
+            if result == 'SAT':
+                print(cex)
 
 
-    # In[15]:
-
-    # 1. ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH > -1.34 : class = TOT_med
-    # 2. ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence > -1.704 : class = TOT_med_slow
-    # 3. ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH <= -2.126 : CLASS = TOT_med
-    # 4. ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH > -2.126 : CLASS = TOT_med_fast
-    # 5. ManualWheel <= 0.307 & FixationStart > -1.677 & FixationStart > 1.717 & PupilLeft > 0.424 & FixationStart > 1.924 : CLASS = TOT_slow
-    # 6. ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel <= 0.887 : CLASS: TOT_med_slow
-    # 7. ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel > 0.887 : CLASS: TOT_fast
-
-    rules = [
-        # ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence > -1.704 : class = TOT_med_slow
-        {
-        'name': 'Rule1',
-        'ubs': {'ManualWheel': 0.307, 'FixationStart': -1.677, 'MPH': -1.34},
-        'lbs':{'FixationSeq': -1.704},
-        'out': 'med_slow'
-        },
-        # ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH <= -2.126 : CLASS = TOT_med
-        {
-        'name': 'Rule2',
-        'ubs': {'ManualWheel': 0.307, 'FixationStart': -1.677, 'MPH': -2.126, 'FixationSeq': -1.704},
-        'lbs':{},
-        'out': 'med'
-        },
-        # ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH > -2.126 : CLASS = TOT_med_fast
-        {
-        'name': 'Rule3',
-        'ubs': {'ManualWheel': 0.307, 'FixationStart': -1.677, 'MPH': -1.34, 'FixationSeq': -1.704},
-        'lbs':{'MPH': -2.126},
-        'out': 'med_fast'
-        },
-        # ManualWheel <= 0.307 & FixationStart > -1.677 & FixationStart > 1.717 & PupilLeft > 0.424 & FixationStart > 1.924 : CLASS = TOT_slow
-        {
-        'name': 'Rule4',
-        'ubs': {'ManualWheel': 0.307},
-        'lbs': {'PupilLeft': 0.424, 'FixationStart':1.924},
-        'out': 'slow'
-        },
-        # ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel <= 0.887 : CLASS: TOT_med_slow
-        {
-        'name': 'Rule5',
-        'ubs': {'ManualWheel': 0.461, 'FixationSeq': 0.62, 'AutoWheel': 0.887},
-        'lbs': {'ManualWheel': 0.307, 'InterpolatedGazeY': 0.109, 'Distance3D': 0.283, 'FixationSeq': -0.043},
-        'out': 'med_slow'
-        },
-        # ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel > 0.887 : CLASS: TOT_fast
-        {
-        'name': 'Rule6',
-        'ubs': {'ManualWheel': 0.461, 'FixationSeq': 0.62},
-        'lbs': {'ManualWheel': 0.307, 'InterpolatedGazeY': 0.109, 'Distance3D': 0.283, 'FixationSeq': -0.043, 'AutoWheel': 0.887},
-        'out': 'fast'
-        }
-    ]
+        X = pickle.load(open(f'{data_path}/X_train.p', 'rb'))
+        Y = pickle.load(open(f'{data_path}/Y_train.p', 'rb'))
+        features = {f:i for i,f in enumerate(pickle.load(open('./features.p', 'rb')))}
+        # features = pickle.load(open('./features.p', 'rb'))
+        labels = {l:i for i,l in enumerate(pickle.load(open('./labels.p', 'rb')))}
+        # categorical_features = {
+        #     22: (-8.516181955122368, -5.615958110066327, -2.7157342650102865, 0.1844895800457542),
+        #     24: (-5.805253562105785, -0.1623221645152569, 5.480609233075271, 11.1235406306658)
+        #     }
+        # categorical_feature_combos = tuple(product(*[tuple(product((f,),fvals)) for f,fvals in categorical_features.items()]))
+        categorical_feature_combos = (
+            ((22, -8.516181955122368), (24, -5.805253562105785)),
+            ((22, -8.516181955122368), (24, 11.1235406306658)),
+            ((22, -5.615958110066327), (24, 5.480609233075271)),
+            ((22, -5.615958110066327), (24, 11.1235406306658)),
+            ((22, -2.7157342650102865), (24, -0.1623221645152569)),
+            ((22, 0.1844895800457542), (24, -0.1623221645152569))
+            )
+        lower_bounds = [X[:, i].min() for i in range(X.shape[1])]
+        upper_bounds = [X[:, i].max() for i in range(X.shape[1])]
+        net = Marabou.read_tf(tf_model_path, modelType='savedModel_v2')
 
 
-    model_path = '../network/models/v3.2.2/model-verification'
-    X = pickle.load(open('../data/v3.2.2/X_train.p', 'rb'))
-    Y = pickle.load(open('../data/v3.2.2/Y_train.p', 'rb'))
-    features = {f:i for i,f in enumerate(pickle.load(open('../data/v3.2.2/features.p', 'rb')))}
-    # features = pickle.load(open('../data/v3.2.2/features.p', 'rb'))
-    labels = {l:i for i,l in enumerate(pickle.load(open('../data/v3.2.2/labels.p', 'rb')))}
-    # categorical_features = {
-    #     22: (-8.516181955122368, -5.615958110066327, -2.7157342650102865, 0.1844895800457542),
-    #     24: (-5.805253562105785, -0.1623221645152569, 5.480609233075271, 11.1235406306658)
-    #     }
-    # categorical_feature_combos = tuple(product(*[tuple(product((f,),fvals)) for f,fvals in categorical_features.items()]))
-    categorical_feature_combos = (
-        ((22, -8.516181955122368), (24, -5.805253562105785)),
-        ((22, -8.516181955122368), (24, 11.1235406306658)),
-        ((22, -5.615958110066327), (24, 5.480609233075271)),
-        ((22, -5.615958110066327), (24, 11.1235406306658)),
-        ((22, -2.7157342650102865), (24, -0.1623221645152569)),
-        ((22, 0.1844895800457542), (24, -0.1623221645152569))
-        )
-    lower_bounds = [X[:, i].min() for i in range(X.shape[1])]
-    upper_bounds = [X[:, i].max() for i in range(X.shape[1])]
+        for rule in rules_25:
+            # test rule with generic initial bounds
+            result, counterexample = test_rule(net, rule, lower_bounds, upper_bounds,
+                                               features, labels, categorical_feature_combos)
+            # print(rule['name'] + '(generic)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
+            pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
+            print(rule['name'] + '(generic)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
+            if result == 'SAT':
+                print('counterexample: ', counterexample)
+            print('')
 
+            # test rule with initial bounds based on rows matching rule
+            lower, upper = get_initial_bounds_based_on_rule_inputs(X, features, rule)
+            result, counterexample = test_rule(net, rule, lower, upper, features, labels, categorical_feature_combos)
+            # print(rule['name'] + '(matching-rows)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
+            pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
+            print(rule['name'] + '(matching-inputs)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
+            if result == 'SAT':
+                print('counterexample: ', counterexample)
+            else:
+                print('UNSAT - BOUNDS:', lower, upper)
+            print('')
 
-
-    for rule in rules:
-        # test rule with generic initial bounds
-        result, counterexample = test_rule(rule, lower_bounds, upper_bounds)
-        # print(rule['name'] + '(generic)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
-        pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
-        print(rule['name'] + '(generic)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
-        if result == 'SAT':
-            print('counterexample: ', counterexample)
-        print('')
-
-        # test rule with initial bounds based on rows matching rule
-        lower, upper = get_initial_bounds_based_on_rule_inputs(X, features, rule)
-        result, counterexample = test_rule(rule, lower, upper)
-        # print(rule['name'] + '(matching-rows)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
-        pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
-        print(rule['name'] + '(matching-inputs)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
-        if result == 'SAT':
-            print('counterexample: ', counterexample)
-        else:
-            print('UNSAT - BOUNDS:', lower, upper)
-        print('')
-
-        # test rule with initial bounds based on rows matching rule
-        lower, upper = get_initial_bounds_based_on_rule_label(X, Y, labels, rule)
-        result, counterexample = test_rule(rule, lower, upper)
-        # print(rule['name'] + '(matching-labels)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
-        pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
-        print(rule['name'] + '(matching-labels)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
-        if result == 'SAT':
-            print('counterexample: ', counterexample)
-        else:
-            print('UNSAT - BOUNDS:', lower, upper)
-        print('-' * 60)
-
-
-    # In[16]:
-
-
-
-
-
-    # In[ ]:
-
-
-    # ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence > -1.704 : class = TOT_med_slow
-    # ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH <= -2.126 : CLASS = TOT_med
-
-    # ManualWheel <= 0.307 & FixationStart <= -1.677 & MPH <= -1.34 & FixationSequence <= -1.704 & MPH > -2.126 : CLASS = TOT_med_fast
-
-    # ManualWheel <= 0.307 & FixationStart > -1.677 & FixationStart > 1.717 & PupilLeft > 0.424 & FixationStart > 1.924 : CLASS = TOT_slow
-    # ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel <= 0.887 : CLASS: TOT_med_slow
-    # ManualWheel > 0.307 & ManualWheel <= 0.77 & ManualWheel <= 0.461 & InterpolatedGazeY > 0.109 & FixationSequence <= 0.62 & Distance3D > 0.283 & FixationSequence > -0.043 & AutoWheel > 0.887 : CLASS: TOT_fast
-
-    new_rules = [
-        {
-        'name': 'Rule1',
-        'ubs': {'ManualWheel': 0.307, 'FixationStart': -1.677, 'MPH': -1.34},
-        'lbs':{'FixationSeq': -1.704},
-        'out': 'med_slow'
-        },
-        {
-        'name': 'Rule2',
-        'ubs': {'ManualWheel': 0.307, 'FixationStart': -1.677, 'MPH': -2.126, 'FixationSeq': -1.704},
-        'lbs':{},
-        'out': 'med'
-        },
-        {
-        'name': 'Rule3',
-        'ubs': {'ManualWheel': 0.307, 'FixationStart': -1.677, 'MPH': -1.34, 'FixationSeq': -1.704},
-        'lbs':{'MPH':-2.126},
-        'out': 'med_fast'
-        }
-    ]
-
-
-    # In[ ]:
+            # test rule with initial bounds based on rows matching rule
+            lower, upper = get_initial_bounds_based_on_rule_label(X, Y, labels, rule)
+            result, counterexample = test_rule(rule, lower, upper, features, labels, categorical_feature_combos)
+            # print(rule['name'] + '(matching-labels)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
+            pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
+            print(rule['name'] + '(matching-labels)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
+            if result == 'SAT':
+                print('counterexample: ', counterexample)
+            else:
+                print('UNSAT - BOUNDS:', lower, upper)
+            print('-' * 60)
 
 
 

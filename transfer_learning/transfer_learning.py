@@ -159,9 +159,12 @@ if __name__ == '__main__':
 
         # Some global variables and general settings
         saved_model_dir = f'./models/{conf_name}'
-        tensorboard_logs = f'./models/{conf_name}'
         load_data_dir = f'../data'
         data_dir = f'./data/{conf_name}'
+        if not os.path.exists(saved_model_dir):
+            os.mkdirs(saved_model_dir)
+        if not os.path.exists(data_dir):
+            os.mkdirs(data_dir)
         pd.options.display.float_format = '{:.2f}'.format
         nnet_tools_path = os.path.abspath('NNet')
 
@@ -245,11 +248,11 @@ if __name__ == '__main__':
         y_base_train_enc, y_base_test_enc, onehot_base = prepare_target(y_base_train, y_base_test, categories=[tot_labels])
         y_new_train_enc, y_new_test_enc, onehot_new = prepare_target(y_new_train, y_new_test, categories=[tot_labels])
 
-        print('TOT Value Counts in full dataset', y_full_train.value_counts())
-        print('TOT Value Counts in base dataset', y_base_train.value_counts())
-        print('TOT Value Counts in new dataset', y_new_train.value_counts())
+        print('TOT Value Counts in full dataset:\n', y_full_train.value_counts())
+        print('TOT Value Counts in base dataset:\n', y_base_train.value_counts())
+        print('TOT Value Counts in new dataset:\n', y_new_train.value_counts())
         # print the TOT categories
-        print('TOT Categories')
+        print('TOT Categories:')
         print('\n'.join(
             ['%s: %9.2f, %7.2f' % (tot_labels[i].rjust(8), tot_bins[i], tot_bins[i + 1]) for i in range(n_categories)]))
 
@@ -259,9 +262,9 @@ if __name__ == '__main__':
         print('Feature Names', feature_names)
 
         print("Saving train and test data ...")
-        save_data(X_full_train_enc, X_full_test_enc, y_full_train_enc, y_full_test_enc,
-                  feature_names, onehot_full, data_dir, mode='_full')
-        save_encoders(scaler_full, onehot_full, saved_model_dir, "_full")
+#        save_data(X_full_train_enc, X_full_test_enc, y_full_train_enc, y_full_test_enc,
+#                  feature_names, onehot_full, data_dir, mode='_full')
+#        save_encoders(scaler_full, onehot_full, saved_model_dir, "_full")
         save_data(X_base_train_enc, X_base_test_enc, y_base_train_enc, y_base_test_enc,
                   feature_names, onehot_base, data_dir, mode='_base')
         save_encoders(scaler_base, onehot_base, saved_model_dir, "_base")
