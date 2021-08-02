@@ -208,16 +208,16 @@ if __name__ == '__main__':
         base_df = full_df.copy()
         base_df.drop(base_df[ids_new].index, inplace=True)
 
-        print('Full dataframe without new driver data', base_df.shape,
-              '\n\n', 'New driver dataframe', only_new_df.shape)
+        print('Full dataframe without new driver data', base_df.shape)
+        print('New driver dataframe', only_new_df.shape)
 
         # split features and targets
         y_full = full_df.TOT
-        X_full = full_df.drop(['TOT'], axis=1)
+        X_full = full_df.drop(['Name', 'ReactionTime', 'TOT'], axis=1)
         y_base = base_df.TOT
-        X_base = base_df.drop(['TOT'], axis=1)
+        X_base = base_df.drop(['Name', 'ReactionTime', 'TOT'], axis=1)
         y_new = only_new_df.TOT
-        X_new = only_new_df.drop(['TOT'], axis=1)
+        X_new = only_new_df.drop(['Name', 'ReactionTime', 'TOT'], axis=1)
 
         # make results easier to reproduce
         random_state = 27
