@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[111]:
-
-
 import pickle
 import pandas as pd
 from verification.tot_net import TOTNetV1
