@@ -160,16 +160,19 @@ def test_rule(net, rule, lower_bounds, upper_bounds, features, labels, categoric
 if __name__ == '__main__':
 
     @scriptify
-    def script(conf_name='default'):
+    def script(conf_name='d13', #
+               query='simple', # or 'complex'
+               model_type='base', # or 'new'
+               rules_type='25'): # or 24
 
         data_path = f'../transfer_learning/data/{conf_name}'
         # model_path = '../network/models/v3.2.2/model.nnet'
-        model_path = f'../transfer_learning/models/{conf_name}/model_base.nnet'
-        tf_model_path = f'../transfer_learning/models/{conf_name}/model_base'
+        model_path = f'../transfer_learning/models/{conf_name}/model_{model_type}.nnet'
+        tf_model_path = f'../transfer_learning/models/{conf_name}/model_{model_type}'
         features = pickle.load(open('./features.p', 'rb'))
         labels = pickle.load(open('./labels.p', 'rb'))
 
-        df = pd.read_csv(f'{data_path}/train_base.csv', index_col=0)
+        df = pd.read_csv(f'{data_path}/train_{model_type}.csv', index_col=0)
         lower_bounds = df.iloc[:, 0:25].min().to_numpy()
         upper_bounds = df.iloc[:, 0:25].max().to_numpy()
 
@@ -180,77 +183,83 @@ if __name__ == '__main__':
             marabou_options=dict(solveWithMILP=True, milpTightening='none')
             )
 
-        for r in rules_25:
-            lbs, ubs = lower_bounds.copy(), upper_bounds.copy()
-            for f,val in r['lbs'].items():
-                lbs[features.index(f)] = val
-            for f,val in r['ubs'].items():
-                ubs[features.index(f)] = val
-            y = labels.index(r['out'])
-            pred, cex = net.find_counterexample(lbs, ubs, y)
-            result = 'UNSAT' if cex is None else 'SAT'
-            print(f'{r["name"]} - class:{r["out"]}, pred:{labels[pred]}, result:{result}')
-            if result == 'SAT':
-                print(cex)
+        if rules_type == '25':
+            rules = rules_25
+        elif rules_type == '24':
+            rules = rules_24
+
+        if query == 'simple':
+            for r in rules:
+                lbs, ubs = lower_bounds.copy(), upper_bounds.copy()
+                for f,val in r['lbs'].items():
+                    lbs[features.index(f)] = val
+                for f,val in r['ubs'].items():
+                    ubs[features.index(f)] = val
+                y = labels.index(r['out'])
+                pred, cex = net.find_counterexample(lbs, ubs, y)
+                result = 'UNSAT' if cex is None else 'SAT'
+                print(f'{r["name"]} - class:{r["out"]}, pred:{labels[pred]}, result:{result}')
+                if result == 'SAT':
+                    print(cex)
+
+        elif query == 'complex':
+            X = pickle.load(open(f'{data_path}/X_train.p', 'rb'))
+            Y = pickle.load(open(f'{data_path}/Y_train.p', 'rb'))
+            features = {f:i for i,f in enumerate(pickle.load(open('./features.p', 'rb')))}
+            # features = pickle.load(open('./features.p', 'rb'))
+            labels = {l:i for i,l in enumerate(pickle.load(open('./labels.p', 'rb')))}
+            # categorical_features = {
+            #     22: (-8.516181955122368, -5.615958110066327, -2.7157342650102865, 0.1844895800457542),
+            #     24: (-5.805253562105785, -0.1623221645152569, 5.480609233075271, 11.1235406306658)
+            #     }
+            # categorical_feature_combos = tuple(product(*[tuple(product((f,),fvals)) for f,fvals in categorical_features.items()]))
+            categorical_feature_combos = (
+                ((22, -8.516181955122368), (24, -5.805253562105785)),
+                ((22, -8.516181955122368), (24, 11.1235406306658)),
+                ((22, -5.615958110066327), (24, 5.480609233075271)),
+                ((22, -5.615958110066327), (24, 11.1235406306658)),
+                ((22, -2.7157342650102865), (24, -0.1623221645152569)),
+                ((22, 0.1844895800457542), (24, -0.1623221645152569))
+                )
+            lower_bounds = [X[:, i].min() for i in range(X.shape[1])]
+            upper_bounds = [X[:, i].max() for i in range(X.shape[1])]
+            net = Marabou.read_tf(tf_model_path, modelType='savedModel_v2')
 
 
-        X = pickle.load(open(f'{data_path}/X_train.p', 'rb'))
-        Y = pickle.load(open(f'{data_path}/Y_train.p', 'rb'))
-        features = {f:i for i,f in enumerate(pickle.load(open('./features.p', 'rb')))}
-        # features = pickle.load(open('./features.p', 'rb'))
-        labels = {l:i for i,l in enumerate(pickle.load(open('./labels.p', 'rb')))}
-        # categorical_features = {
-        #     22: (-8.516181955122368, -5.615958110066327, -2.7157342650102865, 0.1844895800457542),
-        #     24: (-5.805253562105785, -0.1623221645152569, 5.480609233075271, 11.1235406306658)
-        #     }
-        # categorical_feature_combos = tuple(product(*[tuple(product((f,),fvals)) for f,fvals in categorical_features.items()]))
-        categorical_feature_combos = (
-            ((22, -8.516181955122368), (24, -5.805253562105785)),
-            ((22, -8.516181955122368), (24, 11.1235406306658)),
-            ((22, -5.615958110066327), (24, 5.480609233075271)),
-            ((22, -5.615958110066327), (24, 11.1235406306658)),
-            ((22, -2.7157342650102865), (24, -0.1623221645152569)),
-            ((22, 0.1844895800457542), (24, -0.1623221645152569))
-            )
-        lower_bounds = [X[:, i].min() for i in range(X.shape[1])]
-        upper_bounds = [X[:, i].max() for i in range(X.shape[1])]
-        net = Marabou.read_tf(tf_model_path, modelType='savedModel_v2')
+            for rule in rules:
+                # test rule with generic initial bounds
+                result, counterexample = test_rule(net, rule, lower_bounds, upper_bounds,
+                                                   features, labels, categorical_feature_combos)
+                # print(rule['name'] + '(generic)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
+                pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
+                print(rule['name'] + '(generic)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
+                if result == 'SAT':
+                    print('counterexample: ', counterexample)
+                print('')
 
+                # test rule with initial bounds based on rows matching rule
+                lower, upper = get_initial_bounds_based_on_rule_inputs(X, features, rule)
+                result, counterexample = test_rule(net, rule, lower, upper, features, labels, categorical_feature_combos)
+                # print(rule['name'] + '(matching-rows)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
+                pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
+                print(rule['name'] + '(matching-inputs)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
+                if result == 'SAT':
+                    print('counterexample: ', counterexample)
+                else:
+                    print('UNSAT - BOUNDS:', lower, upper)
+                print('')
 
-        for rule in rules_25:
-            # test rule with generic initial bounds
-            result, counterexample = test_rule(net, rule, lower_bounds, upper_bounds,
-                                               features, labels, categorical_feature_combos)
-            # print(rule['name'] + '(generic)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
-            pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
-            print(rule['name'] + '(generic)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
-            if result == 'SAT':
-                print('counterexample: ', counterexample)
-            print('')
-
-            # test rule with initial bounds based on rows matching rule
-            lower, upper = get_initial_bounds_based_on_rule_inputs(X, features, rule)
-            result, counterexample = test_rule(net, rule, lower, upper, features, labels, categorical_feature_combos)
-            # print(rule['name'] + '(matching-rows)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
-            pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
-            print(rule['name'] + '(matching-inputs)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
-            if result == 'SAT':
-                print('counterexample: ', counterexample)
-            else:
-                print('UNSAT - BOUNDS:', lower, upper)
-            print('')
-
-            # test rule with initial bounds based on rows matching rule
-            lower, upper = get_initial_bounds_based_on_rule_label(X, Y, labels, rule)
-            result, counterexample = test_rule(rule, lower, upper, features, labels, categorical_feature_combos)
-            # print(rule['name'] + '(matching-labels)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
-            pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
-            print(rule['name'] + '(matching-labels)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
-            if result == 'SAT':
-                print('counterexample: ', counterexample)
-            else:
-                print('UNSAT - BOUNDS:', lower, upper)
-            print('-' * 60)
+                # test rule with initial bounds based on rows matching rule
+                lower, upper = get_initial_bounds_based_on_rule_label(X, Y, labels, rule)
+                result, counterexample = test_rule(rule, lower, upper, features, labels, categorical_feature_combos)
+                # print(rule['name'] + '(matching-labels)' + f' - class:' + str(rule['out']) + ', pred:' + str(np.argmax(counterexample[1])) + ', result:' + result)
+                pred = str(np.argmax(counterexample[1])) if counterexample is not None else str(rule['out'])
+                print(rule['name'] + '(matching-labels)' + f' - class:' + str(rule['out']) + ', pred:' + pred + ', result:' + result)
+                if result == 'SAT':
+                    print('counterexample: ', counterexample)
+                else:
+                    print('UNSAT - BOUNDS:', lower, upper)
+                print('-' * 60)
 
 
 
