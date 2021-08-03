@@ -165,14 +165,14 @@ if __name__ == '__main__':
                model_type='base', # or 'new'
                rules_type='25'): # or 24
 
-        data_path = f'../transfer_learning/data/{conf_name}'
+        data_path = f'../transfer_learning/data/'
         # model_path = '../network/models/v3.2.2/model.nnet'
         model_path = f'../transfer_learning/models/{conf_name}/model_{model_type}.nnet'
         tf_model_path = f'../transfer_learning/models/{conf_name}/model_{model_type}'
         features = pickle.load(open('./features.p', 'rb'))
         labels = pickle.load(open('./labels.p', 'rb'))
 
-        df = pd.read_csv(f'{data_path}/train_{model_type}.csv', index_col=0)
+        df = pd.read_csv(f'{data_path}/train_full.csv', index_col=0)
         lower_bounds = df.iloc[:, 0:25].min().to_numpy()
         upper_bounds = df.iloc[:, 0:25].max().to_numpy()
 
