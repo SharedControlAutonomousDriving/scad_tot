@@ -1,3 +1,9 @@
+import sys
+# add the submodules to $PATH
+# sys.path[0] is the current file's path
+sys.path.append(sys.path[0] + '/..')
+
+import os
 import pickle
 import pandas as pd
 from verification.tot_net import TOTNetV1
@@ -68,7 +74,7 @@ rules_24 = [
     # MPH <= 0.865 & FixationStart <= -1.663 & FixationStart <= -1.91 & PupilRight > -0.504 & ManualBreak <= 4.058 ----- class = TOT_slow
     {
         'name': 'Rule1',
-        'ubs': {'MPH': 0.865, 'FixationStart': -1.91, 'ManualBreak': 4.058},
+        'ubs': {'MPH': 0.865, 'FixationStart': -1.91, 'ManualBrake': 4.058},
         'lbs':{'PupilRight': -0.504},
         'out': 'slow'
     },
@@ -163,12 +169,15 @@ if __name__ == '__main__':
     def script(conf_name='d13', #
                query='simple', # or 'complex'
                model_type='base', # or 'new'
-               rules_type='25'): # or 24
+               rules_type=25): # or 24
 
         data_path = f'../transfer_learning/data/'
         # model_path = '../network/models/v3.2.2/model.nnet'
         model_path = f'../transfer_learning/models/{conf_name}/model_{model_type}.nnet'
         tf_model_path = f'../transfer_learning/models/{conf_name}/model_{model_type}'
+        marabou_logs_path = f'./marabou_logs/{conf_name}'
+        if not os.path.exists(marabou_logs_path):
+            os.makedirs(marabou_logs_path)
         features = pickle.load(open('./features.p', 'rb'))
         labels = pickle.load(open('./labels.p', 'rb'))
 
@@ -178,14 +187,14 @@ if __name__ == '__main__':
 
         net = TOTNetV1(
             network_path=model_path,
-            network_options=dict(modelType='savedModel_v2'),
             marabou_verbosity=0,
             marabou_options=dict(solveWithMILP=True, milpTightening='none')
             )
 
-        if rules_type == '25':
+        rules = None
+        if rules_type == 25:
             rules = rules_25
-        elif rules_type == '24':
+        elif rules_type == 24:
             rules = rules_24
 
         if query == 'simple':
@@ -196,7 +205,8 @@ if __name__ == '__main__':
                 for f,val in r['ubs'].items():
                     ubs[features.index(f)] = val
                 y = labels.index(r['out'])
-                pred, cex = net.find_counterexample(lbs, ubs, y)
+                pred, cex = net.find_counterexample(lbs, ubs, y,
+                                                    filename=f'{marabou_logs_path}/{r["name"]}_{rules_type}.txt')
                 result = 'UNSAT' if cex is None else 'SAT'
                 print(f'{r["name"]} - class:{r["out"]}, pred:{labels[pred]}, result:{result}')
                 if result == 'SAT':

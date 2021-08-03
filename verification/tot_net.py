@@ -373,14 +373,14 @@ class TOTNet:
             eq.setScalar(0)
             self.network.addEquation(eq)
 
-    def solve(self) -> Tuple[Tuple[List[Number], List[Number]], MarabouCore.Statistics]:
+    def solve(self, filename:str = "") -> Tuple[Tuple[List[Number], List[Number]], MarabouCore.Statistics]:
         '''Solves the input query encoded in the MarabouNetwork object
 
         Returns:
             Tuple[Tuple[List[Number], List[Number]], MarabouCore.Statistics]: tuple containing a counterexample and marabou statistics.
         '''
         options = {'timeoutInSeconds': self._marabou_timeout, 'verbosity': self._marabou_verbosity, **self._marabou_options}
-        vals, stats = self.network.solve(verbose=bool(self._marabou_verbosity), options=Marabou.createOptions(**options))
+        vals, stats = self.network.solve(filename=filename, verbose=bool(self._marabou_verbosity), options=Marabou.createOptions(**options))
         assignment = ([], [])
         if len(vals) > 0:
             for i in range(self.num_inputs):
@@ -389,7 +389,7 @@ class TOTNet:
                 assignment[1].append(vals[self.get_output_var(i)])
         return assignment, stats
     
-    def find_counterexample(self, lbs:Iterable[Number], ubs:Iterable[Number], y:int, allowed_misclassifications:AllowedMisclassifications=None) -> Tuple[int, Counterexample]:
+    def find_counterexample(self, lbs:Iterable[Number], ubs:Iterable[Number], y:int, filename:str="", allowed_misclassifications:AllowedMisclassifications=None) -> Tuple[int, Counterexample]:
         '''Finds any counterexamples within the specified bounds where the network's output is not 'y' or one of the 'allowed_misclassifications'.
 
         Args:
@@ -407,13 +407,13 @@ class TOTNet:
         assert len(lbs) == len(ubs) == self.num_inputs, 'lbs and ubs must be same size a num_inputs'
         assert y < self.num_outputs, 'y must be less that num_outputs'
 
-        def _solve_for_output(y, _lbs:Iterable[Number], _ubs:Iterable[Number]) -> Counterexample:
+        def _solve_for_output(y, _lbs:Iterable[Number], _ubs:Iterable[Number], filename:str="") -> Counterexample:
             '''helper function to solve for a given output'''
             self.reset()
             self.set_lower_bounds(_lbs)
             self.set_upper_bounds(_ubs)
             self.set_expected_category(y, allowed_misclassifications=allowed_misclassifications)
-            result = self.solve()
+            result = self.solve(filename)
             # TODO: look into returning & saving statistics
             vals, stats = result
             if stats.hasTimedOut():
@@ -422,6 +422,7 @@ class TOTNet:
             return (np.array(inputs), np.array(outputs))
 
         y_idxs = [oy for oy in range(self.num_outputs) if oy != y]
+        query_cnter = 0
         for y_idx in y_idxs:
             if len(self._categorical_features.combos) > 0:
                 # for networks with categorical features, solve a query for each possible combination.
@@ -429,13 +430,15 @@ class TOTNet:
                     combo = {f:fval for f,fval in combo}
                     _lbs = [combo.get(x, v) for x,v in enumerate(lbs)]
                     _ubs = [combo.get(x, v) for x,v in enumerate(ubs)]
-                    cex = _solve_for_output(y_idx, _lbs, _ubs)
+                    cex = _solve_for_output(y_idx, _lbs, _ubs, filename=f'{filename}_{query_cnter}')
+                    query_cnter += 1
                     cex_inputs, cex_outputs = cex
                     if np.any(cex_inputs) or np.any(cex_outputs):
                         return y_idx, cex
             else:
                 # for networks without categorical features, just a single query per output.
-                cex = _solve_for_output(y_idx, lbs, ubs)
+                cex = _solve_for_output(y_idx, lbs, ubs, filename=f'{filename}_{query_cnter}')
+                query_cnter += 1
                 cex_inputs, cex_outputs = cex
                 if np.any(cex_inputs) or np.any(cex_outputs):
                     return y_idx, cex
