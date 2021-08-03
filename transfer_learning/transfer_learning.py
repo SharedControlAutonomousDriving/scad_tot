@@ -162,9 +162,9 @@ if __name__ == '__main__':
         load_data_dir = f'../data'
         data_dir = f'./data/{conf_name}'
         if not os.path.exists(saved_model_dir):
-            os.mkdirs(saved_model_dir)
+            os.makedirs(saved_model_dir)
         if not os.path.exists(data_dir):
-            os.mkdirs(data_dir)
+            os.makedirs(data_dir)
         pd.options.display.float_format = '{:.2f}'.format
         nnet_tools_path = os.path.abspath('NNet')
 
