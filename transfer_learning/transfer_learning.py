@@ -373,8 +373,8 @@ if __name__ == '__main__':
                             callbacks=[es_cb, reduce_lr])
 
         # save model in tf and h5 formats
-        tf_model_path = f'{saved_model_dir}/model_transferred'
-        h5_model_path = f'{saved_model_dir}/model_transferred.h5'
+        tf_model_path = f'{saved_model_dir}/model_new'
+        h5_model_path = f'{saved_model_dir}/model_new.h5'
         model.save(tf_model_path, save_format='tf')
         model.save(h5_model_path, save_format='h5')
 
@@ -382,7 +382,7 @@ if __name__ == '__main__':
         nnet_params = compute_nnet_params(tf_model_path, np.concatenate((X_base_train_enc, X_base_test_enc)))
         weights, biases, input_mins, input_maxs, means, ranges = nnet_params
         # write the model to nnet file.
-        nnet_path = os.path.join(saved_model_dir, f'model_transferred.nnet')
+        nnet_path = os.path.join(saved_model_dir, f'model_new.nnet')
         save_nnet(weights, biases, input_mins, input_maxs, means, ranges, nnet_path)
 
         """ Evaluate transferred model"""
