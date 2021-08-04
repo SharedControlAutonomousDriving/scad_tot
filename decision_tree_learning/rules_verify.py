@@ -175,7 +175,7 @@ if __name__ == '__main__':
         # model_path = '../network/models/v3.2.2/model.nnet'
         model_path = f'../transfer_learning/models/{conf_name}/model_{model_type}.nnet'
         tf_model_path = f'../transfer_learning/models/{conf_name}/model_{model_type}'
-        marabou_logs_path = f'./marabou_logs/{conf_name}'
+        marabou_logs_path = f'./marabou_logs/{conf_name}/{model_type}'
         if not os.path.exists(marabou_logs_path):
             os.makedirs(marabou_logs_path)
         features = pickle.load(open('./features.p', 'rb'))
@@ -188,7 +188,7 @@ if __name__ == '__main__':
         net = TOTNetV1(
             network_path=model_path,
             marabou_verbosity=0,
-            marabou_options=dict(solveWithMILP=True, milpTightening='none')
+            marabou_options=dict(verbosity=1)#solveWithMILP=True, milpTightening='none')
             )
 
         rules = None

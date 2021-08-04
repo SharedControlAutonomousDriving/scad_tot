@@ -430,14 +430,20 @@ class TOTNet:
                     combo = {f:fval for f,fval in combo}
                     _lbs = [combo.get(x, v) for x,v in enumerate(lbs)]
                     _ubs = [combo.get(x, v) for x,v in enumerate(ubs)]
-                    cex = _solve_for_output(y_idx, _lbs, _ubs, filename=f'{filename}_{query_cnter}')
+                    if filename != "":
+                        cex = _solve_for_output(y_idx, _lbs, _ubs, filename=f'{filename}_{query_cnter}')
+                    else:
+                        cex = _solve_for_output(y_idx, _lbs, _ubs)
                     query_cnter += 1
                     cex_inputs, cex_outputs = cex
                     if np.any(cex_inputs) or np.any(cex_outputs):
                         return y_idx, cex
             else:
                 # for networks without categorical features, just a single query per output.
-                cex = _solve_for_output(y_idx, lbs, ubs, filename=f'{filename}_{query_cnter}')
+                if filename != "":
+                    cex = _solve_for_output(y_idx, lbs, ubs, filename=f'{filename}_{query_cnter}')
+                else:
+                    cex = _solve_for_output(y_idx, lbs, ubs)
                 query_cnter += 1
                 cex_inputs, cex_outputs = cex
                 if np.any(cex_inputs) or np.any(cex_outputs):
