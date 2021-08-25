@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 from sklearn.tree import export_text
 from scriptify import scriptify
 import os
-from tensorflow.keras.models import Sequential, load_model
+import tensorflow as tf
+from tensorflow.keras.models import load_model
 
 
 def rule_specific_data(X_test, y_test, pred):
@@ -40,9 +41,19 @@ def rule_specific_data(X_test, y_test, pred):
 if __name__ == '__main__':
 
     @scriptify
-    def script(conf_name='default'):
+    def script(conf_name='default',
+               gpu=0):
         " Setup & Install """
         # Some global variables and general settings
+
+        # Select the GPU and allow memory growth to avoid taking all the RAM.
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        tf.config.experimental.set_visible_devices(gpus[gpu], 'GPU')
+        device = gpus[gpu]
+
+        for device in tf.config.experimental.get_visible_devices('GPU'):
+            tf.config.experimental.set_memory_growth(device, True)
+
         saved_model_dir = f'./models/{conf_name}'
         data_dir = f'./data/{conf_name}'
         rules_dir = f'./rules/{conf_name}'
