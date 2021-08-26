@@ -162,8 +162,8 @@ if __name__ == '__main__':
         tree_train_pred = clf.predict(X_train)
         tree_test_pred = clf.predict(X_test)
         # accuracy of predictions using decision tree
-        tree_train_acc = sklearn.metrics.accuracy_score(pred, Y_train_pred)
-        tree_test_acc = sklearn.metrics.accuracy_score(pred, Y_test_pred)
+        tree_train_acc = sklearn.metrics.accuracy_score(tree_train_pred, Y_train_pred)
+        tree_test_acc = sklearn.metrics.accuracy_score(tree_test_pred, Y_test_pred)
         print("Decision tree train accuracy wrt to neural model: ", tree_train_acc)
         print("Decision tree test accuracy wrt to neural model: ", tree_test_acc)
 
