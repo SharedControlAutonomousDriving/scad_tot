@@ -38,6 +38,71 @@ def rule_specific_data(X_test, y_test, pred):
   print("Percentage of datapoints satisfying the rule classified correctly: " + str(acc_rule*100) + "%")
 
 
+def get_rules(tree, feature_names, class_names):
+    tree_ = tree.tree_
+    feature_name = [
+        feature_names[i] if i != tree_.TREE_UNDEFINED else "undefined!"
+        for i in tree_.feature
+    ]
+
+    paths_pure = []
+    paths_impure = []
+    path = []
+
+    def recurse(node, path, paths_pure, paths_impure):
+
+        if tree_.feature[node] != tree_.TREE_UNDEFINED:
+            name = feature_name[node]
+            threshold = tree_.threshold[node]
+            p1, p2 = list(path), list(path)
+            p1 += [f"({name} <= {np.round(threshold, 3)})"]
+            recurse(tree_.children_left[node], p1, paths_pure, paths_impure)
+            p2 += [f"({name} > {np.round(threshold, 3)})"]
+            recurse(tree_.children_right[node], p2, paths_pure, paths_impure)
+        else:
+            path += [(tree_.value[node], tree_.n_node_samples[node])]
+            if tree_.impurity[node] == 0:
+                paths_pure += [path]
+            else:
+                paths_impure += [path]
+
+    recurse(0, path, paths_pure, paths_impure)
+
+    # sort by samples count
+    samples_count = [p[-1][1] for p in paths_pure]
+    ii = list(np.argsort(samples_count))
+    paths_pure = [paths_pure[i] for i in reversed(ii)]
+
+    samples_count = [p[-1][1] for p in paths_impure]
+    ii = list(np.argsort(samples_count))
+    paths_impure = [paths_impure[i] for i in reversed(ii)]
+
+    def gen_rules(paths):
+        rules = []
+        for path in paths:
+            rule = "if "
+
+            for p in path[:-1]:
+                if rule != "if ":
+                    rule += " and "
+                rule += str(p)
+            rule += " then "
+            if class_names is None:
+                rule += "response: " + str(np.round(path[-1][0][0][0], 3))
+            else:
+                classes = path[-1][0][0]
+                l = np.argmax(classes)
+                rule += f"class: {class_names[l]} (proba: {np.round(100.0 * classes[l] / np.sum(classes), 2)}%)"
+            rule += f" | based on {path[-1][1]:,} samples"
+            rules += [rule]
+        return rules
+
+    rules_pure = gen_rules(paths_pure)
+    rules_impure = gen_rules(paths_impure)
+
+    return (rules_pure,rules_impure)
+
+
 if __name__ == '__main__':
 
     @scriptify
@@ -66,12 +131,13 @@ if __name__ == '__main__':
         df_train = pd.read_csv(f'{data_dir}/train_base.csv')
         X_train = df_train.iloc[:, 1:26]
         Y_train = df_train.iloc[:, 26:]
-        y_label = list(Y_train.columns)
+        feature_names = list(X_train.columns)
+        y_labels = list(Y_train.columns)
         Y_train_pred_onehot = neural_model.predict(X_train)
         lst_labels = []
         for pred in Y_train_pred_onehot:
-            loc = np.where(pred == 1)[0]
-            lst_labels.append(y_label[loc])
+            loc = np.argmax(pred)
+            lst_labels.append(y_labels[loc])
         # Target values ['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']
         Y_train_pred = DataFrame(lst_labels, columns=['Target'])
 
@@ -81,8 +147,8 @@ if __name__ == '__main__':
         Y_test_pred_onehot = neural_model.predict(X_test)
         lst_labels = []
         for pred in Y_test_pred_onehot:
-            loc = np.where(pred == 1)[0]
-            lst_labels.append(y_label[loc])
+            loc = np.argmax(pred)
+            lst_labels.append(y_labels[loc])
         # Target values ['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']
         Y_test_pred = DataFrame(lst_labels, columns=['Target'])
 
@@ -100,3 +166,16 @@ if __name__ == '__main__':
         tree_test_acc = sklearn.metrics.accuracy_score(pred, Y_test_pred)
         print("Decision tree train accuracy wrt to neural model: ", tree_train_acc)
         print("Decision tree test accuracy wrt to neural model: ", tree_test_acc)
+
+        (rules_pure, rules_impure) = get_rules(clf,feature_names,y_labels)
+        file_rules_pure = f'{rules_dir}/rules_pure.txt'
+        with open(file_rules_pure, 'w') as f1:
+            for rule in rules_pure:
+                f1.write(rule)
+                f1.write("\n")
+        file_rules_impure = f'{rules_dir}/rules_impure.txt'
+        with open(file_rules_impure, 'w') as f2:
+            for rule in rules_impure:
+                f2.write(rule)
+                f2.write("\n")
+
