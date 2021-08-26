@@ -6,7 +6,6 @@ from sklearn.tree import DecisionTreeClassifier # Import Decision Tree Classifie
 from sklearn.model_selection import train_test_split # Import train_test_split function
 from sklearn import metrics #Import scikit-learn metrics module for accuracy calculation
 from sklearn import tree
-import matplotlib.pyplot as plt
 from sklearn.tree import export_text
 from scriptify import scriptify
 import os
@@ -21,7 +20,6 @@ def rule_specific_data(X_test, y_test, pred):
   test_x_arr = np.asarray(X_test)
   test_y_arr = np.asarray(y_test)
   pred = np.asarray(pred)
-
 
   rule1_lst = []
   for dpoint in range(len(X_test)):
@@ -40,19 +38,13 @@ def rule_specific_data(X_test, y_test, pred):
 
 def get_rules(tree, feature_names, class_names):
     tree_ = tree.tree_
-    feature_name = [
-        feature_names[i] if i != tree_.TREE_UNDEFINED else "undefined!"
-        for i in tree_.feature
-    ]
-
     paths_pure = []
     paths_impure = []
     path = []
 
     def recurse(node, path, paths_pure, paths_impure):
-
-        if tree_.feature[node] != tree_.TREE_UNDEFINED:
-            name = feature_name[node]
+        if tree_.children_left[node] != tree_.children_right[node]: #Internal node
+            name = feature_names[tree_.feature[node]]
             threshold = tree_.threshold[node]
             p1, p2 = list(path), list(path)
             p1 += [f"({name} <= {np.round(threshold, 3)})"]
