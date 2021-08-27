@@ -13,30 +13,7 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 
 
-def rule_specific_data(X_test, y_test, pred):
-
-  feats = list(X_test.columns)
-
-  test_x_arr = np.asarray(X_test)
-  test_y_arr = np.asarray(y_test)
-  pred = np.asarray(pred)
-
-  rule1_lst = []
-  for dpoint in range(len(X_test)):
-      tmp1_lst = []
-      if (X_test.iloc[dpoint, feats.index('ManualWheel')] <= 0.307) and (X_test.iloc[dpoint, feats.index('FixationStart')] <= -1.677) and (X_test.iloc[dpoint, feats.index('MPH')] <= -1.34):
-        tmp1_lst.extend(test_x_arr[dpoint])
-        tmp1_lst.extend(test_y_arr[dpoint])
-        tmp1_lst.append('TOT_med')
-        rule1_lst.append(tmp1_lst)
-  print("Number of datapoints satisfying the rule: " + str(len(rule1_lst)))
-  new_feats = feats + ['Target'] + ['Prediction']
-  rule_df = pd.DataFrame(np.asarray(rule1_lst), columns = new_feats)
-  acc_rule = sklearn.metrics.accuracy_score(rule_df['Target'], rule_df['Prediction'])
-  print("Percentage of datapoints satisfying the rule classified correctly: " + str(acc_rule*100) + "%")
-
-
-def get_rules(tree, feature_names, class_names):
+def get_paths(tree, impurity_threshold):
     tree_ = tree.tree_
     paths_pure = []
     paths_impure = []
@@ -44,15 +21,20 @@ def get_rules(tree, feature_names, class_names):
 
     def recurse(node, path, paths_pure, paths_impure):
         if tree_.children_left[node] != tree_.children_right[node]: #Internal node
-            name = feature_names[tree_.feature[node]]
+            # name = feature_names[tree_.feature[node]]
             threshold = tree_.threshold[node]
             p1, p2 = list(path), list(path)
-            p1 += [f"({name} <= {np.round(threshold, 3)})"]
+            # p1 += [f"({name} <= {np.round(threshold, 3)})"]
+            p1 += [("ub", tree_.feature[node], np.round(threshold, 3))]
             recurse(tree_.children_left[node], p1, paths_pure, paths_impure)
-            p2 += [f"({name} > {np.round(threshold, 3)})"]
+            # p2 += [f"({name} > {np.round(threshold, 3)})"]
+            p2 += [("lb", tree_.feature[node], np.round(threshold, 3))]
             recurse(tree_.children_right[node], p2, paths_pure, paths_impure)
         else:
-            path += [(tree_.value[node], tree_.n_node_samples[node])]
+            classes = tree_.value[node][0]
+            l = np.argmax(classes)
+            prob = np.round(100.0 * classes[l] / np.sum(classes), 2)
+            path += [(tree_.value[node], tree_.n_node_samples[node], prob)]
             if tree_.impurity[node] == 0:
                 paths_pure += [path]
             else:
@@ -68,41 +50,56 @@ def get_rules(tree, feature_names, class_names):
     samples_count = [p[-1][1] for p in paths_impure]
     ii = list(np.argsort(samples_count))
     paths_impure = [paths_impure[i] for i in reversed(ii)]
+    paths_impure = list(filter((lambda p: p[-1][2] >= impurity_threshold), paths_impure))
 
-    def gen_rules(paths):
-        rules = []
+    return (paths_pure,paths_impure)
+
+
+def print_rules(paths, feature_names, class_names, file_path):
+    with open(file_path, 'w') as f1:
         for path in paths:
             rule = "if "
-
             for p in path[:-1]:
                 if rule != "if ":
                     rule += " and "
-                rule += str(p)
+                rule += f'{feature_names[p[1]]} <= {p[2]}' if p[0] == "lb" else f'{feature_names[p[1]]} > {p[2]}'
             rule += " then "
-            if class_names is None:
-                rule += "response: " + str(np.round(path[-1][0][0][0], 3))
-            else:
-                classes = path[-1][0][0]
-                l = np.argmax(classes)
-                rule += f"class: {class_names[l]} (proba: {np.round(100.0 * classes[l] / np.sum(classes), 2)}%)"
+            classes = path[-1][0][0]
+            l = np.argmax(classes)
+            rule += f"class: {class_names[l]} (proba: {path[-1][2]}%)"
             rule += f" | based on {path[-1][1]:,} samples"
-            rules += [rule]
-        return rules
+            f1.write(rule)
+            f1.write("\n")
 
-    rules_pure = gen_rules(paths_pure)
-    rules_impure = gen_rules(paths_impure)
 
-    return (rules_pure,rules_impure)
+def print_marabou_query(path, lbs, ubs, file_path):
+    lbs, ubs = lbs.copy(), ubs.copy()
+    for p in path[:-1]:
+        if p[0] == "lb":
+            lbs[p[1]] = p[2] if p[2] > lbs[p[1]] else lbs[p[1]]
+        else:
+            ubs[p[1]] = p[2] if p[2] < ubs[p[1]] else ubs[p[1]]
+
+    correct_label = np.argmax(path[-1][0][0])
+    incorrect_labels = list(filter(lambda l: l != correct_label, [0,1,2,3,4]))
+    names = ['a','b','c','d']
+
+    for i in range(0, len(incorrect_labels)):
+        fpath = f'{file_path}{names[i]}.txt'
+        with open(fpath, 'w') as f1:
+            for i in range(0, lbs.size):
+                f1.write(f'x{i} >= {lbs[i]}\n')
+                f1.write(f'x{i} < {ubs[i]}\n')
+            f1.write(f'y{incorrect_labels[i]} -y{correct_label} >= 0')
 
 
 if __name__ == '__main__':
 
     @scriptify
     def script(conf_name='default',
+               impurity=0.8, #threshold for choosing an impure rule,
+               num_queries=5, #number of Marabou queries to print
                gpu=0):
-        " Setup & Install """
-        # Some global variables and general settings
-
         # Select the GPU and allow memory growth to avoid taking all the RAM.
         gpus = tf.config.experimental.list_physical_devices('GPU')
         tf.config.experimental.set_visible_devices(gpus[gpu], 'GPU')
@@ -111,6 +108,7 @@ if __name__ == '__main__':
         for device in tf.config.experimental.get_visible_devices('GPU'):
             tf.config.experimental.set_memory_growth(device, True)
 
+        # Some global variables and general settings
         saved_model_dir = f'./models/{conf_name}'
         data_dir = f'./data/{conf_name}'
         rules_dir = f'./rules/{conf_name}'
@@ -120,9 +118,12 @@ if __name__ == '__main__':
         neural_model = load_model(f'{saved_model_dir}/model_base')
         neural_model.summary()
 
-        df_train = pd.read_csv(f'{data_dir}/train_base.csv')
-        X_train = df_train.iloc[:, 1:26]
-        Y_train = df_train.iloc[:, 26:]
+        # Prepare data
+        df_train = pd.read_csv(f'{data_dir}/train_base.csv', index_col=0)
+        lower_bounds = df_train.iloc[:, 0:25].min().to_numpy()
+        upper_bounds = df_train.iloc[:, 0:25].max().to_numpy()
+        X_train = df_train.iloc[:, 0:25]
+        Y_train = df_train.iloc[:, 25:]
         feature_names = list(X_train.columns)
         y_labels = list(Y_train.columns)
         Y_train_pred_onehot = neural_model.predict(X_train)
@@ -159,15 +160,24 @@ if __name__ == '__main__':
         print("Decision tree train accuracy wrt to neural model: ", tree_train_acc)
         print("Decision tree test accuracy wrt to neural model: ", tree_test_acc)
 
-        (rules_pure, rules_impure) = get_rules(clf,feature_names,y_labels)
+        # Print rules and Marabou queries
+        (paths_pure, paths_impure) = get_paths(clf, impurity)
         file_rules_pure = f'{rules_dir}/rules_pure.txt'
-        with open(file_rules_pure, 'w') as f1:
-            for rule in rules_pure:
-                f1.write(rule)
-                f1.write("\n")
+        print_rules(paths_pure, feature_names, y_labels, file_rules_pure)
         file_rules_impure = f'{rules_dir}/rules_impure.txt'
-        with open(file_rules_impure, 'w') as f2:
-            for rule in rules_impure:
-                f2.write(rule)
-                f2.write("\n")
+        print_rules(paths_impure, feature_names, y_labels, file_rules_impure)
+
+        for cnt in range(0, num_queries):
+            path = paths_pure[cnt]
+            query_file_path = f'{rules_dir}/pure_q_{cnt}'
+            print_marabou_query(path,lower_bounds,upper_bounds,query_file_path)
+
+        for cnt in range(0, num_queries):
+            path = paths_impure[cnt]
+            query_file_path = f'{rules_dir}/impure_q_{cnt}'
+            print_marabou_query(path, lower_bounds, upper_bounds, query_file_path)
+            cnt += 1
+
+
+
 
