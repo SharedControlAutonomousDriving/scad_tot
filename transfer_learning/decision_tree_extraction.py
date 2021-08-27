@@ -87,9 +87,9 @@ def print_marabou_query(path, lbs, ubs, file_path):
     for i in range(0, len(incorrect_labels)):
         fpath = f'{file_path}{names[i]}.txt'
         with open(fpath, 'w') as f1:
-            for i in range(0, lbs.size):
-                f1.write(f'x{i} >= {lbs[i]}\n')
-                f1.write(f'x{i} < {ubs[i]}\n')
+            for j in range(0, lbs.size):
+                f1.write(f'x{j} >= {lbs[j]}\n')
+                f1.write(f'x{j} < {ubs[j]}\n')
             f1.write(f'y{incorrect_labels[i]} -y{correct_label} >= 0')
 
 
@@ -97,7 +97,7 @@ if __name__ == '__main__':
 
     @scriptify
     def script(conf_name='default',
-               impurity=0.8, #threshold for choosing an impure rule,
+               impurity=80, #purity percentage threshold for choosing an impure rule,
                num_queries=5, #number of Marabou queries to print
                gpu=0):
         # Select the GPU and allow memory growth to avoid taking all the RAM.
