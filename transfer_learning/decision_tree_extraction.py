@@ -90,7 +90,7 @@ def print_marabou_query(path, lbs, ubs, file_path):
             for j in range(0, lbs.size):
                 f1.write(f'x{j} >= {lbs[j]}\n')
                 f1.write(f'x{j} <= {ubs[j]}\n')
-            f1.write(f'y{incorrect_labels[i]} -y{correct_label} >= 0')
+            f1.write(f'+y{incorrect_labels[i]} -y{correct_label} >= 0')
 
 
 if __name__ == '__main__':
