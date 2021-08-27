@@ -62,7 +62,7 @@ def print_rules(paths, feature_names, class_names, file_path):
             for p in path[:-1]:
                 if rule != "if ":
                     rule += " and "
-                rule += f'{feature_names[p[1]]} <= {p[2]}' if p[0] == "lb" else f'{feature_names[p[1]]} > {p[2]}'
+                rule += f'{feature_names[p[1]]} > {p[2]}' if p[0] == "lb" else f'{feature_names[p[1]]} <= {p[2]}'
             rule += " then "
             classes = path[-1][0][0]
             l = np.argmax(classes)
