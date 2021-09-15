@@ -37,6 +37,10 @@ if __name__ == '__main__':
 
         X_train_enc, y_train_enc, _, _, _, _, _, _ = get_data(experiment, None, data_dir)
 
+        # drop duplicates
+        X_train_enc, idxs = np.unique(X_train_enc, axis=0, return_index=True)
+        y_train_enc = y_train_enc[idxs]
+
         X, Y = LabelGuidedKMeansUtils.remove_outliers(X_train_enc, y_train_enc, tolerance=10)
 
         print(f'dropped {X_train_enc.shape[0] - X.shape[0]} outliers from {X_train_enc.shape[0]} inputs')
