@@ -1,4 +1,4 @@
-tensorflow-cpu
+tensorflow
 pandas
 onnx
 onnxruntime

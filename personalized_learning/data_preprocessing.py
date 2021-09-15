@@ -120,15 +120,15 @@ def get_safescad_data(dataset_file, data_dir, new_driver_ids):
             train_test_split(X_new, y_new, test_size=0.20, stratify=y_new, random_state=random_state)
 
         # upsample the training data
-        print('TOT Value Counts in full data before upsampling', y_full_train.value_counts())
-        print('TOT Value Counts in base data before upsampling', y_base_train.value_counts())
-        print('TOT Value Counts in new data before upsampling', y_new_train.value_counts())
+        print('TOT Value Counts in full data before upsampling\n', y_full_train.value_counts())
+        print('TOT Value Counts in base data before upsampling\n', y_base_train.value_counts())
+        print('TOT Value Counts in new data before upsampling\n', y_new_train.value_counts())
         X_full_train, y_full_train = upsample_minority_TOTs(X_full_train, y_full_train, tot_labels)
         X_base_train, y_base_train = upsample_minority_TOTs(X_base_train, y_base_train, tot_labels)
         X_new_train, y_new_train = upsample_minority_TOTs(X_new_train, y_new_train, tot_labels)
-        print('TOT Value Counts in full data after upsampling', y_full_train.value_counts())
-        print('TOT Value Counts in base data after upsampling', y_base_train.value_counts())
-        print('TOT Value Counts in new data after upsampling', y_new_train.value_counts())
+        print('TOT Value Counts in full data after upsampling\n', y_full_train.value_counts())
+        print('TOT Value Counts in base data after upsampling\n', y_base_train.value_counts())
+        print('TOT Value Counts in new data after upsampling\n', y_new_train.value_counts())
 
 
         # scale the inputs
@@ -161,22 +161,22 @@ def get_safescad_data(dataset_file, data_dir, new_driver_ids):
                 X_new_train_enc, y_new_train_enc, X_new_test_enc, y_new_test_enc)
 
     else:
-        full_train_data = pd.read_csv(f'{data_dir}/train_full.csv')
-        full_test_data = pd.read_csv(f'{data_dir}/test_full.csv')
+        # full_train_data = pd.read_csv(f'{data_dir}/train_full.csv')
+        # full_test_data = pd.read_csv(f'{data_dir}/test_full.csv')
         base_train_data = pd.read_csv(f'{data_dir}/train_base.csv')
         base_test_data = pd.read_csv(f'{data_dir}/test_base.csv')
         new_train_data = pd.read_csv(f'{data_dir}/train_new.csv')
         new_test_data = pd.read_csv(f'{data_dir}/test_new.csv')
 
-        y_full_train_enc = full_train_data[['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']]
-        y_full_test_enc = full_test_data[['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']]
+        # y_full_train_enc = full_train_data[['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']]
+        # y_full_test_enc = full_test_data[['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']]
         y_base_train_enc = base_train_data[['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']]
         y_base_test_enc = base_test_data[['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']]
         y_new_train_enc = new_train_data[['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']]
         y_new_test_enc = new_test_data[['TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow']]
 
-        X_full_train_enc = full_train_data.drop(['Unnamed: 0', 'TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow'], axis=1)
-        X_full_test_enc = full_test_data.drop(['Unnamed: 0', 'TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow'], axis=1)
+        # X_full_train_enc = full_train_data.drop(['Unnamed: 0', 'TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow'], axis=1)
+        # X_full_test_enc = full_test_data.drop(['Unnamed: 0', 'TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow'], axis=1)
         X_base_train_enc = base_train_data.drop(['Unnamed: 0', 'TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow'], axis=1)
         X_base_test_enc = base_test_data.drop(['Unnamed: 0', 'TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow'], axis=1)
         X_new_train_enc = new_train_data.drop(['Unnamed: 0', 'TOT_fast', 'TOT_med_fast', 'TOT_med', 'TOT_med_slow', 'TOT_slow'], axis=1)

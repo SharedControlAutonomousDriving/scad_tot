@@ -25,10 +25,10 @@ if __name__ == '__main__':
                conf_name='default'):
         sys.path.append(os.path.abspath(marabou_path))
 
-        data_dir = f'../data/{experiment}/{conf_name}'
-        model_dir = f'../models/{experiment}/{conf_name}'
-        robust_regions_dir = f'../robust_regions/{experiment}/{conf_name}'
-        marabou_query_dir = f'../marabou_queries/{experiment}/{conf_name}'
+        data_dir = f'./data/{experiment}/{conf_name}'
+        model_dir = f'./models/{experiment}/{conf_name}'
+        robust_regions_dir = f'./robust_regions/{experiment}/{conf_name}'
+        marabou_query_dir = f'./marabou_queries/{experiment}/{conf_name}'
 
         if not os.path.exists(robust_regions_dir):
             os.makedirs(robust_regions_dir)
