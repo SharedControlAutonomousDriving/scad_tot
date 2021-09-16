@@ -102,7 +102,7 @@ if __name__ == '__main__':
 
 
         # fine-tuning the model on new driver's data
-
+        model.summary()
         history = model.fit(X_new_train_enc, y_new_train_enc,
                             validation_split=0.10,
                             epochs=epochs_new,
